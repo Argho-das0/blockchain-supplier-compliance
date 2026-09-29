@@ -1,0 +1,27 @@
+name: Auto Deactivate Non-Compliant Suppliers
+
+on:
+  schedule:
+    - cron: '0 * * * *'    # every hour, on the hour
+  workflow_dispatch:        # manual trigger from GitHub UI for testing
+
+jobs:
+  check-compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run auto-deactivation script
+        run: npx hardhat run scripts/autoDeactivate.js --network sepolia
+        env:
+          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+          SEPOLIA_PRIVATE_KEY: ${{ secrets.SEPOLIA_PRIVATE_KEY }}
