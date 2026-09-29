@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import {AutomationCompatibleInterface} from "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
+
 /**
  * @title SupplierCompliance
  * @dev Blockchain-based Supplier Registration, Resource Management, and Compliance System
  * @notice Manages suppliers, humanitarian resources, one-day compliance mechanism,
  *         penalties, and statistics on an Ethereum-compatible blockchain.
+ *         Includes Chainlink Automation support for automatic deactivation of
+ *         non-compliant suppliers once their compliance window has expired.
  */
-contract SupplierCompliance {
+contract SupplierCompliance is AutomationCompatibleInterface {
     // ============================================================
     // CONSTANTS
     // ============================================================
@@ -216,6 +220,8 @@ contract SupplierCompliance {
      * @notice Identify and deactivate a non-compliant supplier.
      * @dev Restricted to the compliance officer (the contract owner) to prevent
      *      unauthorized parties from triggering deactivations.
+     *      This is the manual override — automatic deactivation is handled by
+     *      Chainlink Automation via checkUpkeep/performUpkeep below.
      */
     function checkAndDeactivate(address _supplier) external onlyOwner {
         Supplier storage s = suppliers[_supplier];
@@ -236,6 +242,68 @@ contract SupplierCompliance {
             s.deactivationTimestamp = block.timestamp;
             emit SupplierDeactivated(_supplier, block.timestamp);
         }
+    }
+
+    // ============================================================
+    // CHAINLINK AUTOMATION
+    // ============================================================
+    /**
+     * @notice Off-chain check for Chainlink Automation.
+     * @dev Returns (true, abi.encode(nonCompliantSupplier)) if any active
+     *      supplier has at least one resource past the compliance deadline.
+     *      Chainlink nodes run this every block, off-chain, at no gas cost.
+     *      Loop is bounded by the number of registered suppliers.
+     */
+    function checkUpkeep(bytes calldata /* checkData */)
+        external
+        view
+        override
+        returns (bool upkeepNeeded, bytes memory performData)
+    {
+        for (uint256 i = 0; i < supplierAddresses.length; i++) {
+            address supplierAddr = supplierAddresses[i];
+            Supplier storage s = suppliers[supplierAddr];
+
+            if (!s.active) continue;
+
+            for (uint256 j = 0; j < s.registeredResources.length; j++) {
+                ResourceType rType = s.registeredResources[j];
+                if (block.timestamp - s.resources[rType].lastUpdated > COMPLIANCE_PERIOD) {
+                    // Found a non-compliant supplier — trigger upkeep for them
+                    return (true, abi.encode(supplierAddr));
+                }
+            }
+        }
+        return (false, bytes(""));
+    }
+
+    /**
+     * @notice On-chain execution triggered by Chainlink Automation.
+     * @dev Deactivates the supplier whose address was passed in performData.
+     *      Re-validates the non-compliance condition before deactivating
+     *      to guard against stale performData.
+     */
+    function performUpkeep(bytes calldata performData) external override {
+        address supplierAddr = abi.decode(performData, (address));
+
+        Supplier storage s = suppliers[supplierAddr];
+        require(s.registered, "Supplier not registered");
+        require(s.active, "Supplier already inactive");
+
+        bool nonCompliant = false;
+        for (uint256 i = 0; i < s.registeredResources.length; i++) {
+            ResourceType rType = s.registeredResources[i];
+            if (block.timestamp - s.resources[rType].lastUpdated > COMPLIANCE_PERIOD) {
+                s.resources[rType].compliant = false;
+                nonCompliant = true;
+            }
+        }
+
+        require(nonCompliant, "Supplier is still compliant");
+
+        s.active = false;
+        s.deactivationTimestamp = block.timestamp;
+        emit SupplierDeactivated(supplierAddr, block.timestamp);
     }
 
     // ============================================================
