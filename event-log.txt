@@ -1,0 +1,44 @@
+EVENT LOG
+=========
+
+All events emitted by the SupplierCompliance contract during the
+demonstration. Events are permanently recorded on the Hardhat blockchain
+and can be observed in the DApp's Live Event Log panel or in the
+Hardhat node terminal output.
+
+FORMAT: [Event Name] (parameters)
+
+--------------------------------------------------------------------------------
+SESSION: Account 0 (owner = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266)
+--------------------------------------------------------------------------------
+
+1.  SupplierRegistered(address indexed supplier = 0xf39fd6e5..., uint256 timestamp)
+2.  ResourceRegistered(address indexed supplier = 0xf39fd6e5..., string resource = "Water")
+3.  ResourceRegistered(address indexed supplier = 0xf39fd6e5..., string resource = "Food")
+4.  ResourceUpdated(address indexed supplier = 0xf39fd6e5..., string resource = "Water", uint256 quantity = 5000)
+5.  SupplierDeactivated(address indexed supplier = 0xf39fd6e5..., uint256 timestamp)
+6.  PenaltyPaid(address indexed supplier = 0xf39fd6e5..., uint256 amount = 1000000)
+7.  SupplierReactivated(address indexed supplier = 0xf39fd6e5..., uint256 timestamp)
+8.  ResourceUpdated(address indexed supplier = 0xf39fd6e5..., string resource = "Water", uint256 quantity = 3000)
+9.  SupplierDeactivated(address indexed supplier = 0xf39fd6e5..., uint256 timestamp)
+
+--------------------------------------------------------------------------------
+SESSION: Account 1 (non-owner = 0x70997970C51812dc3A010C7d01b50e0d17dc79C8)
+--------------------------------------------------------------------------------
+
+10. SupplierRegistered(address indexed supplier = 0x70997970..., uint256 timestamp)
+11. ResourceRegistered(address indexed supplier = 0x70997970..., string resource = "Water")
+
+(Note: the non-owner's deactivation attempt reverted before any event could
+be emitted. Only the contract owner can trigger SupplierDeactivated.)
+
+--------------------------------------------------------------------------------
+EVENT REFERENCE
+--------------------------------------------------------------------------------
+
+SupplierRegistered   : emitted once per successful supplier registration
+ResourceRegistered   : emitted once per resource type, per supplier
+ResourceUpdated      : emitted every time a supplier updates a resource
+SupplierDeactivated  : emitted when the owner deactivates a non-compliant supplier
+PenaltyPaid          : emitted when a supplier pays the penalty
+SupplierReactivated  : emitted when a supplier is reactivated after payment

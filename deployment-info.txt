@@ -1,0 +1,24 @@
+CONTRACT DEPLOYMENT INFORMATION
+================================
+
+Contract Address   : 0x5FbDB2315678afecb367f032d93F642f64180aa3
+Network            : Hardhat Local
+Chain ID           : 31337
+RPC URL            : http://127.0.0.1:8545
+Solidity Version   : 0.8.19
+Hardhat Version    : 2.29.1
+Deployer Wallet    : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+Compliance Officer : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+Frontend URL       : http://localhost:3333
+Deployment Date    : 27-09-2026
+
+CONTRACT OVERVIEW
+-----------------
+The SupplierCompliance contract manages humanitarian resource suppliers
+on an Ethereum-compatible blockchain. It enforces registration rules,
+resource declaration, one-day compliance, automatic deactivation,
+duration-based penalties, and reactivation.
+
+NUMBER OF PUBLIC FUNCTIONS : 26
+NUMBER OF EVENTS           : 6
+NUMBER OF TESTS            : 25 (all passing)

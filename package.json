@@ -1,0 +1,17 @@
+{
+  "name": "blockchain-supplier-compliance",
+  "version": "1.0.0",
+  "description": "Blockchain-Based Supplier Registration, Resource Management, and Compliance System",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "node": "hardhat node"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "dotenv": "^18.0.4",
+    "hardhat": "^2.19.0"
+  }
+}

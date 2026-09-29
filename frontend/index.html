@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Supplier Compliance DApp</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Blockchain Supplier Compliance System</h1>
+    <div id="wallet-info">
+      <button id="connect-wallet">Connect MetaMask</button>
+      <span id="account">Not connected</span>
+    </div>
+  </header>
+
+  <main>
+    <section id="supplier-section">
+      <h2>Supplier Registration</h2>
+      <button id="register-supplier">Register (100,000 wei)</button>
+      <div id="supplier-status"></div>
+    </section>
+
+    <section id="resource-section">
+      <h2>Resource Management</h2>
+      <select id="resource-type">
+        <option value="0">Water</option>
+        <option value="1">Clothing</option>
+        <option value="2">Medicine</option>
+        <option value="3">Food</option>
+      </select>
+      <input type="number" id="resource-quantity" placeholder="Quantity" />
+      <button id="register-resource">Register Resource</button>
+      <button id="update-quantity">Update Quantity</button>
+      <div id="resource-status"></div>
+    </section>
+
+    <section id="simulation-section">
+      <h2>Time Simulation (Hardhat Test Tool)</h2>
+      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Fast-forward blockchain time to test the 1-day compliance rule without waiting 24 hours.</p>
+      <button id="skip-1-day">Fast-Forward 25 Hours</button>
+      <button id="skip-3-days">Fast-Forward 3 Days</button>
+      <button id="skip-10-days">Fast-Forward 10 Days</button>
+      <div id="time-status" style="margin-top:8px; font-size:0.85rem; color:#1e3a8a;"></div>
+    </section>
+
+    <section id="compliance-section">
+      <h2>Compliance & Penalty</h2>
+      <button id="check-compliance">Check Compliance & Deactivate</button>
+      <button id="calculate-penalty">Calculate Penalty</button>
+      <button id="pay-penalty">Pay Penalty & Reactivate</button>
+      <div id="compliance-status"></div>
+    </section>
+
+    <section id="statistics-section">
+      <h2>Statistics</h2>
+      <button id="load-stats">Load Statistics</button>
+      <div id="stats-output"></div>
+    </section>
+  </main>
+
+  <script src="ethers.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
