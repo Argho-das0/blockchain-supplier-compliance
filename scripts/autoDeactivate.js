@@ -1,7 +1,7 @@
 const hre = require("hardhat");
 
 async function main() {
-  const contractAddress = "0x22E44110B79DE49D52D1c51DA1fFbDBF6C36eeB6";
+  const contractAddress = "0xeC60d37f7044AE91B434d54451dFC866Ae18C689";
   const [signer] = await hre.ethers.getSigners();
   console.log(`Running compliance check as: ${signer.address}`);
 

@@ -16,7 +16,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     // CONSTANTS
     // ============================================================
     uint256 public constant REGISTRATION_FEE = 100000 wei;
-    uint256 public constant COMPLIANCE_PERIOD = 3 minutes; // one-day compliance mechanism
+    uint256 public constant COMPLIANCE_PERIOD = 1 days; // one-day compliance mechanism
     uint256 public constant PENALTY_RATE_LOW = 200000 wei;   // 0-1 days
     uint256 public constant PENALTY_RATE_MID = 400000 wei;   // 2-7 days
     uint256 public constant PENALTY_RATE_HIGH = 800000 wei;  // 8-21 days
