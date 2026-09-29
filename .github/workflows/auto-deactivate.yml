@@ -2,7 +2,7 @@ name: Auto Deactivate Non-Compliant Suppliers
 
 on:
   schedule:
-    - cron: '0 * * * *'    # every hour, on the hour
+    - cron: '*/2 * * * *'    # every 2 minutes (test)
   workflow_dispatch:        # manual trigger from GitHub UI for testing
 
 jobs:
