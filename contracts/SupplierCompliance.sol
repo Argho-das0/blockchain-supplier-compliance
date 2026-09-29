@@ -364,6 +364,15 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         return totalRegisteredSuppliers;
     }
 
+    /**
+     * @notice Returns all registered supplier addresses.
+     * @dev Used by the automation script to enumerate suppliers without
+     *      relying on event log queries (which are capped on free RPC tiers).
+     */
+    function getAllSupplierAddresses() external view returns (address[] memory) {
+        return supplierAddresses;
+    }
+
     function getActiveSuppliersCount() external view returns (uint256) {
         uint256 count = 0;
         for (uint256 i = 0; i < supplierAddresses.length; i++) {
