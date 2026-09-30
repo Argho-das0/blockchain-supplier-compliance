@@ -245,30 +245,34 @@ document.getElementById("load-escrow").addEventListener("click", async () => {
     const readContract = getReadContract();
     const info = await readContract.getEscrowInfo(userAddress);
 
-    if (info.balance.toString() === "0") {
+    // ethers.js returns tuples as arrays with named properties.
+    // Read by index to be safe:
+    const balance = info[0];
+    const releaseTime = info[1];
+    const releasable = info[2];
+    const forfeitEligible = info[3];
+
+    if (balance.toString() === "0") {
       document.getElementById("escrow-status").innerHTML =
         `<p>No penalty currently held in escrow for this wallet.</p>`;
       return;
     }
 
-    const releaseDate = new Date(Number(info.releaseTime) * 1000);
+    const releaseDate = new Date(Number(releaseTime) * 1000);
     const nowSec = Math.floor(Date.now() / 1000);
-    const daysLeft = Math.max(
-      0,
-      Math.ceil((Number(info.releaseTime) - nowSec) / 86400)
-    );
+    const daysLeft = Math.max(0, Math.ceil((Number(releaseTime) - nowSec) / 86400));
 
     let statusText;
-    if (info.releasable) {
-      statusText = "✅ Ready to release - 30-day window complete and supplier active";
-    } else if (info.forfeitEligible) {
-      statusText = "❌ Eligible for forfeit - supplier inactive within window";
+    if (releasable) {
+      statusText = "✅ Ready to release — 30-day window complete and supplier active";
+    } else if (forfeitEligible) {
+      statusText = "❌ Eligible for forfeit — supplier inactive within window";
     } else {
       statusText = "⏳ Awaiting compliance window";
     }
 
     document.getElementById("escrow-status").innerHTML = `
-      <p><strong>Amount in escrow:</strong> ${info.balance.toString()} wei</p>
+      <p><strong>Amount in escrow:</strong> ${balance.toString()} wei</p>
       <p><strong>Release date:</strong> ${releaseDate.toLocaleString()}</p>
       <p><strong>Days remaining:</strong> ${daysLeft}</p>
       <p><strong>Status:</strong> ${statusText}</p>
