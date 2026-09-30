@@ -10,13 +10,12 @@ async function loadContractAddress() {
 }
 
 // A direct node provider that bypasses MetaMask's read cache.
-// Use this for all `view` calls so the DApp sees the current chain state
-// immediately after evm_increaseTime.
 const RPC_URL = "https://eth-sepolia.g.alchemy.com/v2/alch_gaTL5mYEuDBwWzTZkOZL-";
 
 const CONTRACT_ABI = [
   "function REGISTRATION_FEE() view returns (uint256)",
   "function COMPLIANCE_PERIOD() view returns (uint256)",
+  "function ESCROW_PERIOD() view returns (uint256)",
   "function owner() view returns (address)",
   "function registerSupplier() payable",
   "function registerResource(uint8 _resourceType, uint256 _quantity)",
@@ -33,7 +32,10 @@ const CONTRACT_ABI = [
   "function getSupplierInfo(address _supplier) view returns (address, uint256, bool, bool, uint256, uint256)",
   "function getAggregateResourceQuantity(uint8 _resourceType) view returns (uint256)",
   "function getTotalPenaltiesCollected() view returns (uint256)",
-  "function getSupplierResourceQuantity(address _supplier, uint8 _resourceType) view returns (uint256)"
+  "function getSupplierResourceQuantity(address _supplier, uint8 _resourceType) view returns (uint256)",
+  "function getEscrowInfo(address _supplier) view returns (uint256, uint256, bool, bool)",
+  "function getTotalEscrowHeld() view returns (uint256)",
+  "function escrowBalance(address) view returns (uint256)"
 ];
 
 let provider, signer, contract, userAddress;
@@ -46,8 +48,6 @@ function log(message) {
   console.log(message);
 }
 
-// Returns a fresh read-only contract using the direct RPC provider.
-// This is used for every `view` call.
 function getReadContract() {
   const readProvider = new ethers.providers.JsonRpcProvider(RPC_URL);
   return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, readProvider);
@@ -122,9 +122,6 @@ document.getElementById("update-quantity").addEventListener("click", async () =>
 
 // ═══════════════════════════════════════════════════════════
 // TIME SIMULATION
-// Uses a direct JsonRpcProvider so that evm_increaseTime and
-// evm_mine actually take effect on the Hardhat node without
-// MetaMask filtering them out.
 // ═══════════════════════════════════════════════════════════
 async function advanceBlockchainTime(seconds, label) {
   try {
@@ -146,9 +143,6 @@ document.getElementById("skip-10-days").addEventListener("click", () => advanceB
 
 // ═══════════════════════════════════════════════════════════
 // CHECK COMPLIANCE & DEACTIVATE
-// Restricted to the compliance officer (the contract owner).
-// The DApp checks this client-side for a friendly message, but
-// the contract itself also enforces it via the onlyOwner modifier.
 // ═══════════════════════════════════════════════════════════
 document.getElementById("check-compliance").addEventListener("click", async () => {
   try {
@@ -164,7 +158,6 @@ document.getElementById("check-compliance").addEventListener("click", async () =
       return;
     }
 
-    // Check whether the connected wallet is the compliance officer.
     const ownerAddress = await readContract.owner();
     if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
       log("❌ Only the compliance officer (" + ownerAddress.slice(0, 8) + "...) can trigger deactivation.");
@@ -188,8 +181,6 @@ document.getElementById("check-compliance").addEventListener("click", async () =
 
 // ═══════════════════════════════════════════════════════════
 // CALCULATE PENALTY
-// Reads from the direct provider so it always sees the current
-// chain time (not MetaMask's cached block).
 // ═══════════════════════════════════════════════════════════
 document.getElementById("calculate-penalty").addEventListener("click", async () => {
   try {
@@ -214,9 +205,6 @@ document.getElementById("calculate-penalty").addEventListener("click", async () 
 
 // ═══════════════════════════════════════════════════════════
 // PAY PENALTY & REACTIVATE
-// The penalty amount must be read from the direct provider so
-// it matches what the contract expects. The transaction itself
-// goes through MetaMask.
 // ═══════════════════════════════════════════════════════════
 document.getElementById("pay-penalty").addEventListener("click", async () => {
   try {
@@ -233,7 +221,7 @@ document.getElementById("pay-penalty").addEventListener("click", async () => {
     }
 
     const penalty = await readContract.calculatePenalty(userAddress);
-    log(`Submitting penalty payment of ${penalty.toString()} wei...`);
+    log(`Submitting penalty payment of ${penalty.toString()} wei into escrow...`);
 
     const tx = await contract.payPenaltyAndReactivate({
       value: penalty.toString(),
@@ -242,9 +230,51 @@ document.getElementById("pay-penalty").addEventListener("click", async () => {
 
     log("Payment tx sent: " + tx.hash);
     await tx.wait();
-    log("🎉 Penalty paid! Supplier is now REACTIVATED and compliance timers reset.");
+    log("🎉 Penalty paid! Funds held in escrow. Reactivated. Compliance timers reset.");
+    log("ℹ️  Stay compliant for 30 days to get the full refund.");
   } catch (err) {
     log("❌ Penalty payment failed: " + (err.reason || err.message));
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// LOAD ESCROW STATUS
+// ═══════════════════════════════════════════════════════════
+document.getElementById("load-escrow").addEventListener("click", async () => {
+  try {
+    const readContract = getReadContract();
+    const info = await readContract.getEscrowInfo(userAddress);
+
+    if (info.balance.toString() === "0") {
+      document.getElementById("escrow-status").innerHTML =
+        `<p>No penalty currently held in escrow for this wallet.</p>`;
+      return;
+    }
+
+    const releaseDate = new Date(Number(info.releaseTime) * 1000);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const daysLeft = Math.max(
+      0,
+      Math.ceil((Number(info.releaseTime) - nowSec) / 86400)
+    );
+
+    let statusText;
+    if (info.releasable) {
+      statusText = "✅ Ready to release - 30-day window complete and supplier active";
+    } else if (info.forfeitEligible) {
+      statusText = "❌ Eligible for forfeit - supplier inactive within window";
+    } else {
+      statusText = "⏳ Awaiting compliance window";
+    }
+
+    document.getElementById("escrow-status").innerHTML = `
+      <p><strong>Amount in escrow:</strong> ${info.balance.toString()} wei</p>
+      <p><strong>Release date:</strong> ${releaseDate.toLocaleString()}</p>
+      <p><strong>Days remaining:</strong> ${daysLeft}</p>
+      <p><strong>Status:</strong> ${statusText}</p>
+    `;
+  } catch (err) {
+    log("❌ Failed to load escrow: " + (err.reason || err.message));
   }
 });
 
@@ -259,6 +289,7 @@ document.getElementById("load-stats").addEventListener("click", async () => {
     const inactive = await readContract.getInactiveSuppliersCount();
     const verified = await readContract.getVerifiedSuppliersCount();
     const penalties = await readContract.getTotalPenaltiesCollected();
+    const escrowHeld = await readContract.getTotalEscrowHeld();
     const water = await readContract.getAggregateResourceQuantity(0);
     const clothing = await readContract.getAggregateResourceQuantity(1);
     const medicine = await readContract.getAggregateResourceQuantity(2);
@@ -269,7 +300,8 @@ document.getElementById("load-stats").addEventListener("click", async () => {
       <p>Active Suppliers: ${active}</p>
       <p>Inactive Suppliers: ${inactive}</p>
       <p>Verified Suppliers: ${verified}</p>
-      <p>Total Penalties: ${penalties} wei</p>
+      <p>Total Penalties Forfeited: ${penalties} wei</p>
+      <p>Total Escrow Held: ${escrowHeld} wei</p>
       <h3>Aggregate Quantities</h3>
       <p>Water: ${water}</p>
       <p>Clothing: ${clothing}</p>

@@ -1,7 +1,7 @@
 const hre = require("hardhat");
 
 async function main() {
-  const contractAddress = "0xeC60d37f7044AE91B434d54451dFC866Ae18C689";
+  const contractAddress = "0x495cc04581Bea1Ef5E65fDd240C5D1775Ff1224c";
   const [signer] = await hre.ethers.getSigners();
   console.log(`Running compliance check as: ${signer.address}`);
 
@@ -10,39 +10,62 @@ async function main() {
   const total = await contract.getTotalRegisteredSuppliers();
   console.log(`Total registered suppliers: ${total}`);
 
-  // Get all supplier addresses directly from the contract.
   const addresses = await contract.getAllSupplierAddresses();
   console.log(`Found ${addresses.length} supplier address(es).`);
 
   let deactivatedCount = 0;
+  let escrowReleased = 0;
+  let escrowForfeited = 0;
 
   for (const addr of addresses) {
     const info = await contract.getSupplierInfo(addr);
     const isActive = info[3];
 
-    if (!isActive) {
-      console.log(`- ${addr}: already inactive, skipping.`);
-      continue;
+    if (isActive) {
+      // Supplier is active — check if it should be deactivated
+      try {
+        console.log(`- ${addr}: attempting deactivation...`);
+        const tx = await contract.checkAndDeactivate(addr);
+        const receipt = await tx.wait();
+
+        const after = await contract.getSupplierInfo(addr);
+        if (!after[3]) {
+          console.log(`  ✅ Deactivated (tx: ${receipt.hash})`);
+          deactivatedCount++;
+        } else {
+          console.log(`  ℹ️ Still compliant, no action.`);
+        }
+      } catch (err) {
+        console.log(`  ⚠️ Deactivation skipped (${err.reason || err.message})`);
+      }
+    } else {
+      console.log(`- ${addr}: already inactive, checking escrow...`);
     }
 
+    // Escrow management — handle both active and inactive suppliers
     try {
-      console.log(`- ${addr}: attempting deactivation...`);
-      const tx = await contract.checkAndDeactivate(addr);
-      const receipt = await tx.wait();
+      const escrow = await contract.getEscrowInfo(addr);
 
-      const after = await contract.getSupplierInfo(addr);
-      if (!after[3]) {
-        console.log(`  ✅ Deactivated (tx: ${receipt.hash})`);
-        deactivatedCount++;
-      } else {
-        console.log(`  ℹ️ Still compliant, no action.`);
+      if (escrow.forfeitEligible) {
+        const tx = await contract.forfeitEscrow(addr);
+        const receipt = await tx.wait();
+        console.log(`  💸 Escrow forfeited for ${addr} (tx: ${receipt.hash})`);
+        escrowForfeited++;
+      } else if (escrow.releasable) {
+        const tx = await contract.releaseEscrow(addr);
+        const receipt = await tx.wait();
+        console.log(`  💰 Escrow released to ${addr} (tx: ${receipt.hash})`);
+        escrowReleased++;
       }
     } catch (err) {
-      console.log(`  ⚠️ Skipped (${err.reason || err.message})`);
+      console.log(`  ⚠️ Escrow op skipped (${err.reason || err.message})`);
     }
   }
 
-  console.log(`\nDone. ${deactivatedCount} supplier(s) deactivated.`);
+  console.log(`\nDone.`);
+  console.log(`  Suppliers deactivated : ${deactivatedCount}`);
+  console.log(`  Escrows released      : ${escrowReleased}`);
+  console.log(`  Escrows forfeited     : ${escrowForfeited}`);
 }
 
 main()

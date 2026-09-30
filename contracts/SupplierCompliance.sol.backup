@@ -10,8 +10,6 @@ import {AutomationCompatibleInterface} from "@chainlink/contracts/src/v0.8/autom
  *         penalties, and statistics on an Ethereum-compatible blockchain.
  *         Includes Chainlink Automation support for automatic deactivation of
  *         non-compliant suppliers once their compliance window has expired.
- *         Penalties are held in escrow and returned to reformed suppliers after
- *         30 days of good behaviour, or forfeited to an aid fund on repeat offence.
  */
 contract SupplierCompliance is AutomationCompatibleInterface {
     // ============================================================
@@ -23,7 +21,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     uint256 public constant PENALTY_RATE_MID = 400000 wei;   // 2-7 days
     uint256 public constant PENALTY_RATE_HIGH = 800000 wei;  // 8-21 days
     uint256 public constant PENALTY_RATE_MAX = 1000000 wei;  // >21 days
-    uint256 public constant ESCROW_PERIOD = 30 days;         // good-behaviour window
 
     // ============================================================
     // ENUMS
@@ -62,19 +59,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     uint256 public totalPenaltiesCollected;
     uint256 public totalRegisteredSuppliers;
 
-    /// @notice Funds held in escrow for suppliers who paid a penalty and are
-    ///         currently inside their 30-day good-behaviour window.
-    mapping(address => uint256) public escrowBalance;
-
-    /// @notice The timestamp at which each supplier's escrow window started.
-    mapping(address => uint256) public escrowStartTime;
-
-    /// @notice Aggregate of all funds currently held in escrow.
-    uint256 public totalEscrowHeld;
-
-    /// @notice Address that receives forfeited escrow funds.
-    address public aidFundAddress;
-
     /// @notice The compliance officer — the wallet that deployed the contract.
     ///         Only this address may call checkAndDeactivate().
     address public immutable owner;
@@ -84,7 +68,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     // ============================================================
     constructor() {
         owner = msg.sender;
-        aidFundAddress = msg.sender;
     }
 
     // ============================================================
@@ -96,10 +79,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     event SupplierDeactivated(address indexed supplier, uint256 timestamp);
     event PenaltyPaid(address indexed supplier, uint256 amount);
     event SupplierReactivated(address indexed supplier, uint256 timestamp);
-    event EscrowDeposited(address indexed supplier, uint256 amount, uint256 releaseTime);
-    event EscrowReleased(address indexed supplier, uint256 amount);
-    event EscrowForfeited(address indexed supplier, uint256 amount, address recipient);
-    event AidFundAddressUpdated(address indexed newAddress);
 
     // ============================================================
     // MODIFIERS
@@ -272,6 +251,8 @@ contract SupplierCompliance is AutomationCompatibleInterface {
      * @notice Off-chain check for Chainlink Automation.
      * @dev Returns (true, abi.encode(nonCompliantSupplier)) if any active
      *      supplier has at least one resource past the compliance deadline.
+     *      Chainlink nodes run this every block, off-chain, at no gas cost.
+     *      Loop is bounded by the number of registered suppliers.
      */
     function checkUpkeep(bytes calldata /* checkData */)
         external
@@ -288,6 +269,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
             for (uint256 j = 0; j < s.registeredResources.length; j++) {
                 ResourceType rType = s.registeredResources[j];
                 if (block.timestamp - s.resources[rType].lastUpdated > COMPLIANCE_PERIOD) {
+                    // Found a non-compliant supplier — trigger upkeep for them
                     return (true, abi.encode(supplierAddr));
                 }
             }
@@ -297,6 +279,9 @@ contract SupplierCompliance is AutomationCompatibleInterface {
 
     /**
      * @notice On-chain execution triggered by Chainlink Automation.
+     * @dev Deactivates the supplier whose address was passed in performData.
+     *      Re-validates the non-compliance condition before deactivating
+     *      to guard against stale performData.
      */
     function performUpkeep(bytes calldata performData) external override {
         address supplierAddr = abi.decode(performData, (address));
@@ -347,10 +332,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
 
     /**
      * @notice Pay penalty and reactivate supplier.
-     * @dev The payment is deposited into the supplier's escrow account rather
-     *      than the general penalty pool. It is returned to the supplier after
-     *      30 days of good behaviour, or forfeited to the aid fund on repeat
-     *      offence within the window.
      */
     function payPenaltyAndReactivate() external payable {
         Supplier storage s = suppliers[msg.sender];
@@ -360,15 +341,12 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         uint256 penalty = calculatePenalty(msg.sender);
         require(msg.value == penalty, "Incorrect penalty amount");
 
-        // Route payment into escrow.
-        escrowBalance[msg.sender] += msg.value;
-        escrowStartTime[msg.sender] = block.timestamp;
-        totalEscrowHeld += msg.value;
-
         s.totalPenaltiesPaid += msg.value;
+        totalPenaltiesCollected += msg.value;
         s.active = true;
         s.deactivationTimestamp = 0;
 
+        // Restart compliance timers for all registered resources
         for (uint256 i = 0; i < s.registeredResources.length; i++) {
             ResourceType rType = s.registeredResources[i];
             s.resources[rType].lastUpdated = block.timestamp;
@@ -376,92 +354,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         }
 
         emit PenaltyPaid(msg.sender, msg.value);
-        emit EscrowDeposited(msg.sender, msg.value, block.timestamp + ESCROW_PERIOD);
         emit SupplierReactivated(msg.sender, block.timestamp);
-    }
-
-    // ============================================================
-    // ESCROW MANAGEMENT
-    // ============================================================
-    /**
-     * @notice Releases escrow to a supplier whose 30-day good-behaviour window
-     *         has elapsed without a further deactivation.
-     * @dev Callable by anyone. Conditions checked on-chain.
-     */
-    function releaseEscrow(address _supplier) external {
-        uint256 balance = escrowBalance[_supplier];
-        require(balance > 0, "No escrow to release");
-
-        uint256 startTime = escrowStartTime[_supplier];
-        require(block.timestamp >= startTime + ESCROW_PERIOD, "Escrow period not yet elapsed");
-
-        Supplier storage s = suppliers[_supplier];
-        require(s.active, "Supplier is inactive - escrow forfeit eligible");
-
-        escrowBalance[_supplier] = 0;
-        escrowStartTime[_supplier] = 0;
-        totalEscrowHeld -= balance;
-
-        (bool sent, ) = payable(_supplier).call{value: balance}("");
-        require(sent, "Refund transfer failed");
-
-        emit EscrowReleased(_supplier, balance);
-    }
-
-    /**
-     * @notice Forfeits the escrow of a supplier who was deactivated again
-     *         within their 30-day good-behaviour window.
-     * @dev Callable by anyone. If the supplier is currently inactive and still
-     *      inside the window, the escrow goes to the aid fund.
-     */
-    function forfeitEscrow(address _supplier) external {
-        uint256 balance = escrowBalance[_supplier];
-        require(balance > 0, "No escrow to forfeit");
-
-        uint256 startTime = escrowStartTime[_supplier];
-        require(block.timestamp < startTime + ESCROW_PERIOD, "Escrow period elapsed - use releaseEscrow");
-
-        Supplier storage s = suppliers[_supplier];
-        require(!s.active, "Supplier is active - cannot forfeit");
-
-        escrowBalance[_supplier] = 0;
-        escrowStartTime[_supplier] = 0;
-        totalEscrowHeld -= balance;
-        totalPenaltiesCollected += balance;
-
-        (bool sent, ) = payable(aidFundAddress).call{value: balance}("");
-        require(sent, "Aid fund transfer failed");
-
-        emit EscrowForfeited(_supplier, balance, aidFundAddress);
-    }
-
-    /**
-     * @notice Update the address that receives forfeited escrow.
-     */
-    function setAidFundAddress(address _newAddress) external onlyOwner {
-        require(_newAddress != address(0), "Invalid address");
-        aidFundAddress = _newAddress;
-        emit AidFundAddressUpdated(_newAddress);
-    }
-
-    /**
-     * @notice View helper returning escrow balance, release time, and status flags.
-     */
-    function getEscrowInfo(address _supplier)
-        external
-        view
-        returns (uint256 balance, uint256 releaseTime, bool releasable, bool forfeitEligible)
-    {
-        balance = escrowBalance[_supplier];
-        if (balance == 0) return (0, 0, false, false);
-
-        uint256 start = escrowStartTime[_supplier];
-        releaseTime = start + ESCROW_PERIOD;
-        bool windowElapsed = block.timestamp >= releaseTime;
-        bool supplierActive = suppliers[_supplier].active;
-
-        releasable = windowElapsed && supplierActive;
-        forfeitEligible = !windowElapsed && !supplierActive;
     }
 
     // ============================================================
@@ -473,6 +366,8 @@ contract SupplierCompliance is AutomationCompatibleInterface {
 
     /**
      * @notice Returns all registered supplier addresses.
+     * @dev Used by the automation script to enumerate suppliers without
+     *      relying on event log queries (which are capped on free RPC tiers).
      */
     function getAllSupplierAddresses() external view returns (address[] memory) {
         return supplierAddresses;
@@ -605,10 +500,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
 
     function getTotalPenaltiesCollected() external view returns (uint256) {
         return totalPenaltiesCollected;
-    }
-
-    function getTotalEscrowHeld() external view returns (uint256) {
-        return totalEscrowHeld;
     }
 
     // ============================================================
