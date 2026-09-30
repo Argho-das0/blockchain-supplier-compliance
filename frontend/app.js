@@ -1,3 +1,7 @@
+/* ═══════════════════════════════════════════════════════════
+   APP.JS — Supplier Compliance (Blush/Editorial revamp)
+   ═══════════════════════════════════════════════════════════ */
+
 let CONTRACT_ADDRESS = null;
 
 async function loadContractAddress() {
@@ -9,7 +13,6 @@ async function loadContractAddress() {
   return CONTRACT_ADDRESS;
 }
 
-// A direct node provider that bypasses MetaMask's read cache.
 const RPC_URL = "https://eth-sepolia.g.alchemy.com/v2/alch_gaTL5mYEuDBwWzTZkOZL-";
 
 const CONTRACT_ABI = [
@@ -57,9 +60,9 @@ const CONTRACT_ABI = [
 
 let provider, signer, contract, userAddress;
 
-// ═══════════════════════════════════════════════════════════
-// TOAST NOTIFICATIONS
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   TOASTS (bottom-center)
+   ═══════════════════════════════════════════════════════════ */
 function toast(message, type) {
   type = type || "info";
   const container = document.getElementById("toast-container");
@@ -69,21 +72,16 @@ function toast(message, type) {
   el.textContent = message;
   container.appendChild(el);
   setTimeout(function () {
-    el.style.transition = "opacity .3s, transform .3s";
+    el.style.transition = "opacity .35s, transform .35s";
     el.style.opacity = "0";
-    el.style.transform = "translateX(100%)";
-    setTimeout(function () { el.remove(); }, 300);
+    el.style.transform = "translateY(12px)";
+    setTimeout(function () { el.remove(); }, 350);
   }, 4500);
 }
 
-// ═══════════════════════════════════════════════════════════
-// LOG HELPER
-// ═══════════════════════════════════════════════════════════
 function log(message) {
   const output = document.getElementById("stats-output");
-  if (output) {
-    output.innerHTML = "<p>" + message + "</p>" + output.innerHTML;
-  }
+  if (output) output.innerHTML = "<p>" + message + "</p>" + output.innerHTML;
   console.log(message);
 }
 
@@ -92,9 +90,50 @@ function getReadContract() {
   return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, readProvider);
 }
 
-// ═══════════════════════════════════════════════════════════
-// SIDEBAR NAVIGATION
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   LANDING ⇄ APP TRANSITION
+   ═══════════════════════════════════════════════════════════ */
+const landingEl = document.getElementById("landing");
+const appEl = document.getElementById("app");
+
+function showApp(targetSection) {
+  landingEl.classList.add("exit");
+  appEl.classList.add("visible");
+  document.body.style.overflow = "auto";
+  setTimeout(function () {
+    landingEl.style.display = "none";
+    if (targetSection) switchSection(targetSection);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, 900);
+}
+
+function showLanding() {
+  landingEl.style.display = "";
+  window.scrollTo({ top: 0, behavior: "instant" });
+  requestAnimationFrame(function () {
+    landingEl.classList.remove("exit");
+    appEl.classList.remove("visible");
+    document.body.style.overflow = "hidden";
+  });
+}
+
+document.getElementById("enter-app").addEventListener("click", function () {
+  showApp("overview");
+});
+
+document.getElementById("back-to-landing").addEventListener("click", showLanding);
+
+// Capsule nav links — jump directly to a section
+document.querySelectorAll("[data-jump]").forEach(function (link) {
+  link.addEventListener("click", function (e) {
+    e.preventDefault();
+    showApp(link.dataset.jump);
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════
+   RAIL NAVIGATION
+   ═══════════════════════════════════════════════════════════ */
 const PAGE_TITLES = {
   overview:   ["Overview", "Manage suppliers, resources, and compliance on-chain."],
   supplier:   ["Supplier Registration", "Join the network by paying the fixed registration fee."],
@@ -107,10 +146,10 @@ const PAGE_TITLES = {
 };
 
 function switchSection(name) {
-  document.querySelectorAll(".nav-item").forEach(function (btn) {
+  document.querySelectorAll(".rail-item").forEach(function (btn) {
     btn.classList.toggle("active", btn.dataset.section === name);
   });
-  document.querySelectorAll(".section").forEach(function (sec) {
+  document.querySelectorAll(".sec").forEach(function (sec) {
     sec.classList.toggle("active", sec.id === "section-" + name);
   });
   const info = PAGE_TITLES[name] || ["", ""];
@@ -118,17 +157,16 @@ function switchSection(name) {
   const sEl = document.getElementById("page-subtitle");
   if (tEl) tEl.textContent = info[0];
   if (sEl) sEl.textContent = info[1];
-  const mainArea = document.querySelector(".main-area");
-  if (mainArea) mainArea.scrollTop = 0;
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-document.querySelectorAll(".nav-item").forEach(function (btn) {
+document.querySelectorAll(".rail-item").forEach(function (btn) {
   btn.addEventListener("click", function () { switchSection(btn.dataset.section); });
 });
 
-// ═══════════════════════════════════════════════════════════
-// OVERVIEW REFRESH
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   OVERVIEW REFRESH
+   ═══════════════════════════════════════════════════════════ */
 async function refreshOverview() {
   try {
     await loadContractAddress();
@@ -146,7 +184,7 @@ async function refreshOverview() {
     document.getElementById("ov-total").textContent = total.toString();
     document.getElementById("ov-active").textContent = active.toString();
     document.getElementById("ov-inactive").textContent = inactive.toString();
-    document.getElementById("ov-escrow").textContent = escrow.toString() + " wei";
+    document.getElementById("ov-escrow").textContent = escrow.toString();
     document.getElementById("ov-water").textContent = water.toString();
     document.getElementById("ov-clothing").textContent = clothing.toString();
     document.getElementById("ov-medicine").textContent = medicine.toString();
@@ -166,8 +204,8 @@ async function refreshOverview() {
     const tier = await rc.getReputationTier(userAddress);
     el.innerHTML =
       "<p><strong>Wallet:</strong> <code>" + userAddress + "</code></p>" +
-      "<p><strong>Status:</strong> " + (info[3] ? "✅ Active" : "❌ Inactive") + "</p>" +
-      "<p><strong>Reputation:</strong> " + reputation.toString() + " <span style='color:#6b7280;'>(" + tier + ")</span></p>" +
+      "<p><strong>Status:</strong> " + (info[3] ? "Active" : "Inactive") + "</p>" +
+      "<p><strong>Reputation:</strong> " + reputation.toString() + " (" + tier + ")</p>" +
       "<p><strong>Resources:</strong> " + info[5].toString() + "</p>";
   } catch (err) {
     console.error("refreshOverview failed:", err.message);
@@ -176,44 +214,48 @@ async function refreshOverview() {
 
 document.getElementById("refresh-overview").addEventListener("click", refreshOverview);
 
-// ═══════════════════════════════════════════════════════════
-// WALLET CONNECT
-// ═══════════════════════════════════════════════════════════
-document.getElementById("connect-wallet").addEventListener("click", async () => {
-  if (window.ethereum) {
-    try {
-      await loadContractAddress();
-      provider = new ethers.providers.Web3Provider(window.ethereum);
-      await provider.send("eth_requestAccounts", []);
-      signer = provider.getSigner();
-      userAddress = await signer.getAddress();
-      contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-
-      document.getElementById("account").textContent =
-        userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
-      document.getElementById("account-chip").classList.remove("hidden");
-      document.getElementById("connect-label").textContent = "Connected";
-
-      log("✅ Wallet connected: " + userAddress);
-      toast("Wallet connected", "success");
-
-      if (!listening) {
-        await startListening();
-      }
-      await refreshOverview();
-    } catch (err) {
-      log("❌ Error connecting wallet: " + err.message);
-      toast("Connection failed: " + err.message, "error");
-    }
-  } else {
-    log("MetaMask not detected. Please install MetaMask.");
+/* ═══════════════════════════════════════════════════════════
+   WALLET CONNECT — both the rail button and hero pill
+   ═══════════════════════════════════════════════════════════ */
+async function connectWallet() {
+  if (!window.ethereum) {
+    log("MetaMask not detected.");
     toast("MetaMask not detected", "error");
+    return;
   }
-});
+  try {
+    await loadContractAddress();
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    signer = provider.getSigner();
+    userAddress = await signer.getAddress();
+    contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 
-// ═══════════════════════════════════════════════════════════
-// REGISTER SUPPLIER
-// ═══════════════════════════════════════════════════════════
+    document.getElementById("account").textContent =
+      userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
+    document.getElementById("account-chip").classList.remove("hidden");
+    document.getElementById("connect-label").textContent = "Connected";
+
+    const heroBtn = document.getElementById("hero-connect");
+    if (heroBtn) heroBtn.classList.add("connected");
+
+    log("Wallet connected: " + userAddress);
+    toast("Wallet connected", "success");
+
+    if (!listening) await startListening();
+    await refreshOverview();
+  } catch (err) {
+    log("Error connecting: " + err.message);
+    toast("Connection failed: " + err.message, "error");
+  }
+}
+
+document.getElementById("connect-wallet").addEventListener("click", connectWallet);
+document.getElementById("hero-connect").addEventListener("click", connectWallet);
+
+/* ═══════════════════════════════════════════════════════════
+   REGISTER SUPPLIER
+   ═══════════════════════════════════════════════════════════ */
 document.getElementById("register-supplier").addEventListener("click", async () => {
   try {
     const rc = getReadContract();
@@ -222,25 +264,25 @@ document.getElementById("register-supplier").addEventListener("click", async () 
     log("Registration tx sent: " + tx.hash);
     toast("Registration submitted…", "info");
     await tx.wait();
-    log("✅ Supplier registered successfully!");
+    log("Supplier registered successfully!");
     toast("Supplier registered", "success");
     await refreshOverview();
   } catch (err) {
     const msg = err.reason || err.message;
-    log("❌ Registration failed: " + msg);
+    log("Registration failed: " + msg);
     toast("Registration failed: " + msg, "error");
   }
 });
 
-// ═══════════════════════════════════════════════════════════
-// RESOURCE MANAGEMENT
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   RESOURCE MANAGEMENT
+   ═══════════════════════════════════════════════════════════ */
 document.getElementById("register-resource").addEventListener("click", async () => {
   try {
     const type = document.getElementById("resource-type").value;
     const qty = document.getElementById("resource-quantity").value;
     if (!qty || Number(qty) <= 0) {
-      log("❌ Enter a quantity greater than zero.");
+      log("Enter a quantity greater than zero.");
       toast("Enter a quantity greater than zero", "warn");
       return;
     }
@@ -248,12 +290,12 @@ document.getElementById("register-resource").addEventListener("click", async () 
     log("Resource registration tx: " + tx.hash);
     toast("Resource registration submitted…", "info");
     await tx.wait();
-    log("✅ Resource registered successfully!");
+    log("Resource registered successfully!");
     toast("Resource registered", "success");
     await refreshOverview();
   } catch (err) {
     const msg = err.reason || err.message;
-    log("❌ Resource registration failed: " + msg);
+    log("Resource registration failed: " + msg);
     toast("Resource registration failed: " + msg, "error");
   }
 });
@@ -263,7 +305,7 @@ document.getElementById("update-quantity").addEventListener("click", async () =>
     const type = document.getElementById("resource-type").value;
     const qty = document.getElementById("resource-quantity").value;
     if (!qty || Number(qty) <= 0) {
-      log("❌ Enter a quantity greater than zero.");
+      log("Enter a quantity greater than zero.");
       toast("Enter a quantity greater than zero", "warn");
       return;
     }
@@ -271,19 +313,19 @@ document.getElementById("update-quantity").addEventListener("click", async () =>
     log("Update tx: " + tx.hash);
     toast("Update submitted…", "info");
     await tx.wait();
-    log("✅ Quantity updated and 24h compliance timer refreshed!");
+    log("Quantity updated and 24h compliance timer refreshed!");
     toast("Quantity updated", "success");
     await refreshOverview();
   } catch (err) {
     const msg = err.reason || err.message;
-    log("❌ Update failed: " + msg);
+    log("Update failed: " + msg);
     toast("Update failed: " + msg, "error");
   }
 });
 
-// ═══════════════════════════════════════════════════════════
-// COMPLIANCE COUNTDOWN
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   COMPLIANCE COUNTDOWN
+   ═══════════════════════════════════════════════════════════ */
 function formatDuration(seconds) {
   if (seconds <= 0) return "EXPIRED";
   const d = Math.floor(seconds / 86400);
@@ -302,7 +344,6 @@ document.getElementById("load-countdown").addEventListener("click", async () => 
   try {
     const rc = getReadContract();
     const resourceNames = ["Water", "Clothing", "Medicine", "Food"];
-    const icons = ["💧", "👕", "💊", "🍚"];
     let html = "";
 
     for (let i = 0; i < 4; i++) {
@@ -313,49 +354,43 @@ document.getElementById("load-countdown").addEventListener("click", async () => 
       const seconds = Number(remaining);
 
       let color, status;
-      if (seconds === 0) {
-        color = "#dc2626"; status = "EXPIRED — will be deactivated";
-      } else if (seconds < 3600) {
-        color = "#ea580c"; status = "URGENT — under 1 hour remaining";
-      } else if (seconds < 21600) {
-        color = "#eab308"; status = "Approaching deadline";
-      } else {
-        color = "#16a34a"; status = "Compliant";
-      }
+      if (seconds === 0) { color = "#8C3A2E"; status = "EXPIRED — will be deactivated"; }
+      else if (seconds < 3600) { color = "#A65A2E"; status = "URGENT — under 1 hour remaining"; }
+      else if (seconds < 21600) { color = "#8B6F47"; status = "Approaching deadline"; }
+      else { color = "#3F6F4A"; status = "Compliant"; }
 
       html +=
-        '<div style="margin-bottom:12px; padding:14px; background:#fff; border-left:4px solid ' + color + '; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,.04);">' +
-        '<div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">' +
-        '<span style="font-size:18px;">' + icons[i] + '</span>' +
-        '<strong>' + resourceNames[i] + '</strong>' +
-        '<span style="color:#6b7280; font-size:12px;">— quantity ' + qty.toString() + '</span>' +
+        '<div style="margin-bottom:14px; padding:16px 18px; background:rgba(250,244,241,.6); border-left:2px solid ' + color + ';">' +
+        '<div style="display:flex; align-items:baseline; gap:10px; margin-bottom:6px;">' +
+        '<strong style="font-family:\'Instrument Serif\', serif; font-size:20px; font-weight:400;">' + resourceNames[i] + '</strong>' +
+        '<span style="color:#8B7B78; font-size:11px; font-family:\'JetBrains Mono\', monospace;">qty ' + qty.toString() + '</span>' +
         '</div>' +
-        '<div style="color:' + color + '; font-weight:600; font-size:13px;">' + status + '</div>' +
-        '<div style="font-family:monospace; font-size:12.5px; color:#4b5563; margin-top:4px;">Time remaining: ' + formatDuration(seconds) + '</div>' +
+        '<div style="color:' + color + '; font-weight:600; font-size:12px;">' + status + '</div>' +
+        '<div style="font-family:\'JetBrains Mono\', monospace; font-size:11.5px; color:#4A3F3E; margin-top:4px;">' + formatDuration(seconds) + ' remaining</div>' +
         '</div>';
     }
 
     if (!html) html = "<p class='muted'>No resources registered yet.</p>";
     document.getElementById("countdown-output").innerHTML = html;
   } catch (err) {
-    log("❌ Failed to load countdown: " + (err.reason || err.message));
+    log("Failed to load countdown: " + (err.reason || err.message));
     toast("Countdown failed", "error");
   }
 });
 
-// ═══════════════════════════════════════════════════════════
-// TIME SIMULATION
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   TIME SIMULATION
+   ═══════════════════════════════════════════════════════════ */
 async function advanceBlockchainTime(seconds, label) {
   try {
     const localProvider = new ethers.providers.JsonRpcProvider(RPC_URL);
     await localProvider.send("evm_increaseTime", [seconds]);
     await localProvider.send("evm_mine", []);
     document.getElementById("time-status").innerText = "Fast-forwarded: " + label;
-    log("⏩ Advanced blockchain time by " + label + ".");
+    log("Advanced blockchain time by " + label + ".");
     toast("Time advanced by " + label, "success");
   } catch (err) {
-    log("❌ Failed to advance time: " + err.message);
+    log("Failed to advance time: " + err.message);
     toast("Time advance failed (Sepolia doesn't support this)", "error");
   }
 }
@@ -364,49 +399,43 @@ document.getElementById("skip-1-day").addEventListener("click", function () { ad
 document.getElementById("skip-3-days").addEventListener("click", function () { advanceBlockchainTime(259200, "3 Days"); });
 document.getElementById("skip-10-days").addEventListener("click", function () { advanceBlockchainTime(864000, "10 Days"); });
 
-// ═══════════════════════════════════════════════════════════
-// CHECK COMPLIANCE
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   CHECK COMPLIANCE
+   ═══════════════════════════════════════════════════════════ */
 document.getElementById("check-compliance").addEventListener("click", async () => {
   try {
     const rc = getReadContract();
     const infoBefore = await rc.getSupplierInfo(userAddress);
-    if (!infoBefore[2]) {
-      toast("Wallet is not registered as a supplier", "warn");
-      return;
-    }
-    if (!infoBefore[3]) {
-      toast("Supplier is already INACTIVE", "warn");
-      return;
-    }
+    if (!infoBefore[2]) { toast("Wallet is not registered as a supplier", "warn"); return; }
+    if (!infoBefore[3]) { toast("Supplier is already INACTIVE", "warn"); return; }
     const ownerAddress = await rc.owner();
     if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
       toast("Only the compliance officer can deactivate", "error");
       return;
     }
     const tx = await contract.checkAndDeactivate(userAddress);
-    log("Check compliance tx sent: " + tx.hash);
+    log("Check compliance tx: " + tx.hash);
     toast("Compliance check submitted…", "info");
     await tx.wait();
     const infoAfter = await rc.getSupplierInfo(userAddress);
     if (!infoAfter[3]) {
-      log("🚨 Supplier non-compliant! Status changed to INACTIVE.");
+      log("Supplier non-compliant. Status changed to INACTIVE.");
       toast("Supplier deactivated", "warn");
     } else {
-      log("✅ Supplier is currently COMPLIANT.");
+      log("Supplier is currently COMPLIANT.");
       toast("Supplier is compliant", "success");
     }
     await refreshOverview();
   } catch (err) {
     const msg = err.reason || err.message;
-    log("❌ Compliance check failed: " + msg);
+    log("Compliance check failed: " + msg);
     toast("Compliance check failed: " + msg, "error");
   }
 });
 
-// ═══════════════════════════════════════════════════════════
-// CALCULATE PENALTY
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   CALCULATE PENALTY
+   ═══════════════════════════════════════════════════════════ */
 document.getElementById("calculate-penalty").addEventListener("click", async () => {
   try {
     const rc = getReadContract();
@@ -414,17 +443,17 @@ document.getElementById("calculate-penalty").addEventListener("click", async () 
     if (!info[2]) { toast("Wallet is not registered", "warn"); return; }
     if (info[3]) { toast("Supplier is active — no penalty applies", "warn"); return; }
     const penalty = await rc.calculatePenalty(userAddress);
-    log("💰 Calculated Penalty: " + penalty.toString() + " wei");
+    log("Calculated penalty: " + penalty.toString() + " wei");
     toast("Penalty: " + penalty.toString() + " wei", "info");
   } catch (err) {
-    log("❌ Penalty calculation failed: " + (err.reason || err.message));
+    log("Penalty calculation failed: " + (err.reason || err.message));
     toast("Penalty calculation failed", "error");
   }
 });
 
-// ═══════════════════════════════════════════════════════════
-// PAY PENALTY
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   PAY PENALTY
+   ═══════════════════════════════════════════════════════════ */
 document.getElementById("pay-penalty").addEventListener("click", async () => {
   try {
     const rc = getReadContract();
@@ -432,27 +461,24 @@ document.getElementById("pay-penalty").addEventListener("click", async () => {
     if (!info[2]) { toast("Wallet is not registered", "warn"); return; }
     if (info[3]) { toast("Supplier is already active", "warn"); return; }
     const penalty = await rc.calculatePenalty(userAddress);
-    log("Submitting penalty payment of " + penalty.toString() + " wei into escrow...");
+    log("Submitting penalty payment of " + penalty.toString() + " wei into escrow…");
     toast("Submitting penalty…", "info");
-    const tx = await contract.payPenaltyAndReactivate({
-      value: penalty.toString(),
-      gasLimit: 300000
-    });
-    log("Payment tx sent: " + tx.hash);
+    const tx = await contract.payPenaltyAndReactivate({ value: penalty.toString(), gasLimit: 300000 });
+    log("Payment tx: " + tx.hash);
     await tx.wait();
-    log("🎉 Penalty paid! Funds held in escrow.");
+    log("Penalty paid. Funds held in escrow.");
     toast("Penalty paid — supplier reactivated", "success");
     await refreshOverview();
   } catch (err) {
     const msg = err.reason || err.message;
-    log("❌ Penalty payment failed: " + msg);
+    log("Penalty payment failed: " + msg);
     toast("Penalty payment failed: " + msg, "error");
   }
 });
 
-// ═══════════════════════════════════════════════════════════
-// ESCROW
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   ESCROW
+   ═══════════════════════════════════════════════════════════ */
 document.getElementById("load-escrow").addEventListener("click", async () => {
   try {
     const rc = getReadContract();
@@ -471,9 +497,9 @@ document.getElementById("load-escrow").addEventListener("click", async () => {
     const nowSec = Math.floor(Date.now() / 1000);
     const daysLeft = Math.max(0, Math.ceil((Number(releaseTime) - nowSec) / 86400));
     let statusText;
-    if (releasable) statusText = "✅ Ready to release";
-    else if (forfeitEligible) statusText = "❌ Eligible for forfeit";
-    else statusText = "⏳ Awaiting compliance window";
+    if (releasable) statusText = "Ready to release";
+    else if (forfeitEligible) statusText = "Eligible for forfeit";
+    else statusText = "Awaiting compliance window";
 
     document.getElementById("escrow-status").innerHTML =
       "<p><strong>Amount in escrow:</strong> <code>" + balance.toString() + " wei</code></p>" +
@@ -481,55 +507,56 @@ document.getElementById("load-escrow").addEventListener("click", async () => {
       "<p><strong>Days remaining:</strong> " + daysLeft + "</p>" +
       "<p><strong>Status:</strong> " + statusText + "</p>";
   } catch (err) {
-    log("❌ Failed to load escrow: " + (err.reason || err.message));
+    log("Failed to load escrow: " + (err.reason || err.message));
     toast("Escrow load failed", "error");
   }
 });
 
-// ═══════════════════════════════════════════════════════════
-// REPUTATION
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   REPUTATION
+   ═══════════════════════════════════════════════════════════ */
 document.getElementById("load-reputation").addEventListener("click", async () => {
   try {
     const rc = getReadContract();
     const score = await rc.getSupplierReputation(userAddress);
     const tier = await rc.getReputationTier(userAddress);
     const n = Number(score);
+
     let barColor;
-    if (n >= 180) barColor = "#8b5cf6";
-    else if (n >= 150) barColor = "#eab308";
-    else if (n >= 120) barColor = "#9ca3af";
-    else if (n >= 80)  barColor = "#b45309";
-    else               barColor = "#dc2626";
+    if (n >= 180) barColor = "#8B6F47";
+    else if (n >= 150) barColor = "#A65A2E";
+    else if (n >= 120) barColor = "#8B7B78";
+    else if (n >= 80) barColor = "#8C3A2E";
+    else barColor = "#8C3A2E";
+
     const percentage = Math.min(100, (n / 200) * 100);
 
     document.getElementById("reputation-status").innerHTML =
-      '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
-      '<span style="font-size:24px; font-weight:700; font-family:monospace;">' + score.toString() + '</span>' +
-      '<span style="font-size:12px; color:#6b7280;">/ 200</span>' +
+      '<div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px;">' +
+      '<span style="font-family:\'Instrument Serif\', serif; font-size:56px; line-height:.9;">' + score.toString() + '</span>' +
+      '<span style="font-family:\'JetBrains Mono\', monospace; font-size:11px; color:#8B7B78;">/ 200 · ' + tier.toUpperCase() + '</span>' +
       '</div>' +
-      '<p style="margin:6px 0;"><strong>Tier:</strong> ' + tier + '</p>' +
-      '<div style="background:#e5e7eb; border-radius:6px; height:14px; margin-top:8px; overflow:hidden;">' +
-      '<div style="background:' + barColor + '; width:' + percentage + '%; height:100%; transition:width .4s;"></div>' +
+      '<div style="background:rgba(26,22,22,.08); height:2px; margin-top:10px; overflow:hidden;">' +
+      '<div style="background:' + barColor + '; width:' + percentage + '%; height:100%; transition:width .6s cubic-bezier(.4,0,.2,1);"></div>' +
       '</div>';
   } catch (err) {
-    log("❌ Failed to load reputation: " + (err.reason || err.message));
+    log("Failed to load reputation: " + (err.reason || err.message));
     toast("Reputation load failed", "error");
   }
 });
 
-// ═══════════════════════════════════════════════════════════
-// EMERGENCY PAUSE
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   EMERGENCY PAUSE
+   ═══════════════════════════════════════════════════════════ */
 document.getElementById("check-pause-status").addEventListener("click", async () => {
   try {
     const rc = getReadContract();
     const isPaused = await rc.paused();
     document.getElementById("pause-status").innerHTML = isPaused
-      ? '<p style="color:#dc2626;"><strong>⚠️ CONTRACT PAUSED</strong> — state changes halted.</p>'
-      : '<p style="color:#16a34a;"><strong>✅ Contract active</strong> — operations running normally.</p>';
+      ? '<p style="color:#8C3A2E;"><strong>CONTRACT PAUSED</strong> — state changes halted.</p>'
+      : '<p style="color:#3F6F4A;"><strong>Contract active</strong> — operations running normally.</p>';
   } catch (err) {
-    log("❌ Failed to check pause status: " + (err.reason || err.message));
+    log("Failed to check pause status: " + (err.reason || err.message));
   }
 });
 
@@ -542,14 +569,14 @@ document.getElementById("pause-contract").addEventListener("click", async () => 
       return;
     }
     const tx = await contract.pause();
-    log("Pause tx sent: " + tx.hash);
+    log("Pause tx: " + tx.hash);
     toast("Pausing…", "info");
     await tx.wait();
-    log("⏸️ Contract PAUSED.");
+    log("Contract PAUSED.");
     toast("Contract paused", "warn");
   } catch (err) {
     const msg = err.reason || err.message;
-    log("❌ Pause failed: " + msg);
+    log("Pause failed: " + msg);
     toast("Pause failed: " + msg, "error");
   }
 });
@@ -563,21 +590,21 @@ document.getElementById("unpause-contract").addEventListener("click", async () =
       return;
     }
     const tx = await contract.unpause();
-    log("Unpause tx sent: " + tx.hash);
+    log("Unpause tx: " + tx.hash);
     toast("Unpausing…", "info");
     await tx.wait();
-    log("▶️ Contract UNPAUSED.");
+    log("Contract UNPAUSED.");
     toast("Contract resumed", "success");
   } catch (err) {
     const msg = err.reason || err.message;
-    log("❌ Unpause failed: " + msg);
+    log("Unpause failed: " + msg);
     toast("Unpause failed: " + msg, "error");
   }
 });
 
-// ═══════════════════════════════════════════════════════════
-// LIVE EVENT LOG
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   LIVE EVENT LOG
+   ═══════════════════════════════════════════════════════════ */
 let eventListeners = [];
 let listening = false;
 
@@ -599,18 +626,18 @@ async function startListening() {
   const rc = getReadContract();
 
   const handlers = [
-    ["SupplierRegistered", function (s) { appendEvent("🆕 SupplierRegistered: " + shorten(s)); }],
-    ["ResourceRegistered", function (s, r) { appendEvent("📦 ResourceRegistered: " + r + " (" + shorten(s) + ")"); }],
-    ["ResourceUpdated", function (s, r, q) { appendEvent("🔄 ResourceUpdated: " + r + " = " + q.toString()); }],
-    ["SupplierDeactivated", function (s) { appendEvent("🚨 SupplierDeactivated: " + shorten(s)); }],
-    ["PenaltyPaid", function (s, a) { appendEvent("💰 PenaltyPaid: " + a.toString() + " wei"); }],
-    ["SupplierReactivated", function (s) { appendEvent("✅ SupplierReactivated: " + shorten(s)); }],
-    ["EscrowDeposited", function (s, a) { appendEvent("🔒 EscrowDeposited: " + a.toString() + " wei"); }],
-    ["EscrowReleased", function (s, a) { appendEvent("💵 EscrowReleased: " + a.toString() + " wei"); }],
-    ["EscrowForfeited", function (s, a, r) { appendEvent("💸 EscrowForfeited: " + a.toString() + " wei to " + shorten(r)); }],
-    ["ReputationChanged", function (s, o, n, reason) { appendEvent("⭐ Reputation: " + o + " → " + n + " (" + reason + ")"); }],
-    ["ContractPaused", function (by) { appendEvent("⏸️ ContractPaused by " + shorten(by)); }],
-    ["ContractUnpaused", function (by) { appendEvent("▶️ ContractUnpaused by " + shorten(by)); }]
+    ["SupplierRegistered", function (s) { appendEvent("SupplierRegistered: " + shorten(s)); }],
+    ["ResourceRegistered", function (s, r) { appendEvent("ResourceRegistered: " + r + " (" + shorten(s) + ")"); }],
+    ["ResourceUpdated", function (s, r, q) { appendEvent("ResourceUpdated: " + r + " = " + q.toString()); }],
+    ["SupplierDeactivated", function (s) { appendEvent("SupplierDeactivated: " + shorten(s)); }],
+    ["PenaltyPaid", function (s, a) { appendEvent("PenaltyPaid: " + a.toString() + " wei"); }],
+    ["SupplierReactivated", function (s) { appendEvent("SupplierReactivated: " + shorten(s)); }],
+    ["EscrowDeposited", function (s, a) { appendEvent("EscrowDeposited: " + a.toString() + " wei"); }],
+    ["EscrowReleased", function (s, a) { appendEvent("EscrowReleased: " + a.toString() + " wei"); }],
+    ["EscrowForfeited", function (s, a, r) { appendEvent("EscrowForfeited: " + a.toString() + " wei to " + shorten(r)); }],
+    ["ReputationChanged", function (s, o, n, reason) { appendEvent("Reputation: " + o + " to " + n + " (" + reason + ")"); }],
+    ["ContractPaused", function (by) { appendEvent("ContractPaused by " + shorten(by)); }],
+    ["ContractUnpaused", function (by) { appendEvent("ContractUnpaused by " + shorten(by)); }]
   ];
 
   for (let i = 0; i < handlers.length; i++) {
@@ -622,8 +649,8 @@ async function startListening() {
   }
 
   listening = true;
-  document.getElementById("toggle-events").textContent = "Stop Listening";
-  appendEvent("🎧 Listening for events...");
+  document.getElementById("toggle-events").textContent = "Stop";
+  appendEvent("Listening for events…");
 }
 
 function stopListening() {
@@ -634,8 +661,8 @@ function stopListening() {
   }
   eventListeners = [];
   listening = false;
-  document.getElementById("toggle-events").textContent = "Start Listening";
-  appendEvent("⏸️ Stopped listening.");
+  document.getElementById("toggle-events").textContent = "Start";
+  appendEvent("Stopped listening.");
 }
 
 document.getElementById("toggle-events").addEventListener("click", async () => {
@@ -644,13 +671,12 @@ document.getElementById("toggle-events").addEventListener("click", async () => {
 });
 
 document.getElementById("clear-events").addEventListener("click", function () {
-  document.getElementById("event-log").innerHTML =
-    '<p style="color:#94a3b8; margin:0;">Cleared.</p>';
+  document.getElementById("event-log").innerHTML = '<p class="muted">Cleared.</p>';
 });
 
-// ═══════════════════════════════════════════════════════════
-// LOAD STATISTICS
-// ═══════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
+   LOAD STATISTICS
+   ═══════════════════════════════════════════════════════════ */
 document.getElementById("load-stats").addEventListener("click", async () => {
   try {
     const rc = getReadContract();
@@ -682,12 +708,17 @@ document.getElementById("load-stats").addEventListener("click", async () => {
       "<p>Total Penalties Forfeited: " + penalties + " wei</p>" +
       "<p>Total Escrow Held: " + escrowHeld + " wei</p>" +
       reputationLine +
-      "<h3>Aggregate Quantities</h3>" +
+      "<p style='margin-top:14px;'><strong>Aggregate Quantities</strong></p>" +
       "<p>Water: " + water + "</p>" +
       "<p>Clothing: " + clothing + "</p>" +
       "<p>Medicine: " + medicine + "</p>" +
       "<p>Food: " + food + "</p>";
   } catch (err) {
-    log("❌ Failed to load stats: " + (err.reason || err.message));
+    log("Failed to load stats: " + (err.reason || err.message));
   }
 });
+
+/* ═══════════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════════ */
+document.body.style.overflow = "hidden"; // lock scroll while on landing
