@@ -993,6 +993,39 @@ body.app-active .cursor-spotlight { opacity: 1; }
   padding-left: 32px;
 }
 
+/* ─── HUD INTERACTIVITY ─── */
+.ov-hud-stat {
+  cursor: pointer;
+}
+.ov-hud-stat:hover { transform: scale(1.08); }
+.ov-hud-stat:hover .ov-hud-lbl { opacity: 1; }
+.ov-hud-stat:active { transform: scale(0.98); }
+
+.ov-caption {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.ov-caption-lbl {
+  transition: opacity 0.4s ease, letter-spacing 0.4s ease;
+}
+.ov-caption:hover .ov-caption-lbl {
+  opacity: 1;
+  letter-spacing: 0.3em;
+}
+.ov-caption-txt {
+  transition: color 0.4s ease;
+}
+.ov-caption:hover .ov-caption-txt { color: var(--accent); }
+
+.ov-marquee-item {
+  transition: transform 0.4s cubic-bezier(.22,1,.36,1);
+}
+.ov-marquee-item:hover { transform: scale(1.08); }
+.ov-marquee-item:hover .ov-marquee-name { color: var(--accent); }
+.ov-marquee-item:hover .ov-marquee-value { color: var(--ink); }
+.ov-marquee-name { transition: color 0.3s ease; }
+.ov-marquee-value { transition: color 0.3s ease; }
+
 /* ─── RESPONSIVE ─── */
 @media (max-width: 900px) {
   .capsule-nav { display: none; }
