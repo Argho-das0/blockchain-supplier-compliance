@@ -100,6 +100,7 @@ function showApp(targetSection) {
   landingEl.classList.add("exit");
   appEl.classList.add("visible");
   document.body.style.overflow = "auto";
+  document.body.classList.add("app-active");
   setTimeout(function () {
     landingEl.style.display = "none";
     if (targetSection) switchSection(targetSection);
@@ -110,6 +111,7 @@ function showApp(targetSection) {
 function showLanding() {
   landingEl.style.display = "";
   window.scrollTo({ top: 0, behavior: "instant" });
+  document.body.classList.remove("app-active");
   requestAnimationFrame(function () {
     landingEl.classList.remove("exit");
     appEl.classList.remove("visible");
@@ -144,21 +146,55 @@ const PAGE_TITLES = {
 };
 
 function switchSection(name) {
+  const currentSec = document.querySelector(".sec.active");
+  const nextSec = document.getElementById("section-" + name);
+  if (!nextSec) return;
+
   document.querySelectorAll(".rail-item").forEach(function (btn) {
     btn.classList.toggle("active", btn.dataset.section === name);
   });
-  document.querySelectorAll(".sec").forEach(function (sec) {
-    sec.classList.toggle("active", sec.id === "section-" + name);
-  });
+
+  if (currentSec && currentSec !== nextSec) {
+    currentSec.style.transition = "opacity 0.25s ease, transform 0.25s ease";
+    currentSec.style.opacity = "0";
+    currentSec.style.transform = "translateX(-16px)";
+    setTimeout(function () {
+      currentSec.classList.remove("active");
+      currentSec.style.opacity = "";
+      currentSec.style.transform = "";
+      currentSec.style.transition = "";
+      nextSec.classList.add("active");
+      nextSec.style.opacity = "0";
+      nextSec.style.transform = "translateX(24px)";
+      requestAnimationFrame(function () {
+        nextSec.style.transition = "opacity 0.4s ease, transform 0.4s ease";
+        nextSec.style.opacity = "1";
+        nextSec.style.transform = "translateX(0)";
+        setTimeout(function () {
+          nextSec.style.transition = "";
+          nextSec.style.opacity = "";
+          nextSec.style.transform = "";
+        }, 420);
+      });
+    }, 260);
+  } else {
+    nextSec.classList.add("active");
+  }
+
   const info = PAGE_TITLES[name] || ["", ""];
   const tEl = document.getElementById("page-title");
   const sEl = document.getElementById("page-subtitle");
-  if (tEl) tEl.textContent = info[0];
+  if (tEl) {
+    tEl.textContent = info[0];
+    tEl.classList.remove("reveal");
+    void tEl.offsetWidth;
+    tEl.classList.add("reveal");
+  }
   if (sEl) sEl.textContent = info[1];
+
   window.scrollTo({ top: 0, behavior: "smooth" });
 
-  // Re-run count-up on overview section
-  if (name === "overview") setTimeout(animateStatNumbers, 200);
+  if (name === "overview") setTimeout(animateStatNumbers, 400);
 }
 
 document.querySelectorAll(".rail-item").forEach(function (btn) {
@@ -175,7 +211,6 @@ function animateValue(el, endValue, duration) {
   function tick(now) {
     const elapsed = now - startTime;
     const progress = Math.min(elapsed / duration, 1);
-    // easeOutCubic
     const eased = 1 - Math.pow(1 - progress, 3);
     const current = Math.round(start + (endValue - start) * eased);
     el.textContent = current.toString();
@@ -201,6 +236,8 @@ function animateStatNumbers() {
    ═══════════════════════════════════════════════════════════ */
 function initMagneticButtons() {
   document.querySelectorAll(".pill.primary, .pill-enter").forEach(function (btn) {
+    if (btn.dataset.magnetic === "1") return;
+    btn.dataset.magnetic = "1";
     btn.addEventListener("mousemove", function (e) {
       const rect = btn.getBoundingClientRect();
       const x = e.clientX - rect.left - rect.width / 2;
@@ -587,8 +624,13 @@ document.getElementById("load-reputation").addEventListener("click", async () =>
       '<span style="font-family:\'JetBrains Mono\', monospace; font-size:11px; color:#8B7B78;">/ 200 · ' + tier.toUpperCase() + '</span>' +
       '</div>' +
       '<div style="background:rgba(26,22,22,.08); height:2px; margin-top:12px; overflow:hidden;">' +
-      '<div style="background:' + barColor + '; width:' + percentage + '%; height:100%; transition:width .8s cubic-bezier(.4,0,.2,1);"></div>' +
+      '<div style="background:' + barColor + '; width:0%; height:100%; transition:width 0.9s cubic-bezier(.22,1,.36,1);"></div>' +
       '</div>';
+
+    setTimeout(function () {
+      const bar = document.querySelector("#reputation-status > div > div");
+      if (bar) bar.style.width = percentage + "%";
+    }, 50);
   } catch (err) {
     log("Failed to load reputation: " + (err.reason || err.message));
     toast("Reputation load failed", "error");
@@ -767,6 +809,176 @@ document.getElementById("load-stats").addEventListener("click", async () => {
     log("Failed to load stats: " + (err.reason || err.message));
   }
 });
+
+/* ═══════════════════════════════════════════════════════════
+   CURSOR SPOTLIGHT
+   ═══════════════════════════════════════════════════════════ */
+(function initSpotlight() {
+  const spot = document.getElementById("cursor-spotlight");
+  if (!spot) return;
+  let targetX = window.innerWidth / 2;
+  let targetY = window.innerHeight / 2;
+  let currentX = targetX;
+  let currentY = targetY;
+
+  document.addEventListener("mousemove", function (e) {
+    targetX = e.clientX;
+    targetY = e.clientY;
+  });
+
+  function animate() {
+    currentX += (targetX - currentX) * 0.12;
+    currentY += (targetY - currentY) * 0.12;
+    spot.style.left = currentX + "px";
+    spot.style.top = currentY + "px";
+    requestAnimationFrame(animate);
+  }
+  animate();
+})();
+
+/* ═══════════════════════════════════════════════════════════
+   RAIL + BUTTON CURSOR TRACKING (radial glow)
+   ═══════════════════════════════════════════════════════════ */
+function trackCursor(element) {
+  element.addEventListener("mousemove", function (e) {
+    const rect = element.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    element.style.setProperty("--mx", x + "%");
+    element.style.setProperty("--my", y + "%");
+  });
+}
+
+document.querySelectorAll(".rail-item, .pill").forEach(trackCursor);
+
+/* ═══════════════════════════════════════════════════════════
+   AMBIENT APP CANVAS (faint background node graph)
+   ═══════════════════════════════════════════════════════════ */
+(function initAppCanvas() {
+  const appRoot = document.querySelector(".app");
+  if (!appRoot) return;
+
+  const canvas = document.createElement("canvas");
+  canvas.id = "app-canvas";
+  appRoot.insertBefore(canvas, appRoot.firstChild);
+
+  const ctx = canvas.getContext("2d");
+  let W, H, DPR, nodes = [];
+  let mouse = { x: -9999, y: -9999 };
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = canvas.clientWidth;
+    H = canvas.clientHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    build();
+  }
+
+  function build() {
+    nodes = [];
+    const count = Math.min(30, Math.floor((W * H) / 40000));
+    for (let i = 0; i < count; i++) {
+      nodes.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 0.15,
+        vy: (Math.random() - 0.5) * 0.15,
+        r: 1 + Math.random() * 1.5,
+        pulse: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      n.x += n.vx; n.y += n.vy; n.pulse += 0.015;
+      if (n.x < -20) n.x = W + 20;
+      if (n.x > W + 20) n.x = -20;
+      if (n.y < -20) n.y = H + 20;
+      if (n.y > H + 20) n.y = -20;
+
+      const dx = n.x - mouse.x, dy = n.y - mouse.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < 150 * 150 && d2 > 0.01) {
+        const d = Math.sqrt(d2);
+        const force = (1 - d / 150) * 0.4;
+        n.x += (dx / d) * force;
+        n.y += (dy / d) * force;
+      }
+    }
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < 200) {
+          ctx.strokeStyle = "rgba(139,111,71," + (1 - d / 200) * 0.12 + ")";
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+      }
+    }
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      const p = 0.6 + Math.sin(n.pulse) * 0.4;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(26,22,22," + 0.18 * p + ")";
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener("resize", resize);
+  document.addEventListener("mousemove", function (e) {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - rect.left;
+    mouse.y = e.clientY - rect.top;
+  });
+
+  resize();
+  draw();
+})();
+
+/* ═══════════════════════════════════════════════════════════
+   SCROLL REVEALS
+   ═══════════════════════════════════════════════════════════ */
+(function initScrollReveals() {
+  const obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        entry.target.style.opacity = "1";
+        entry.target.style.transform = "translateY(0)";
+        obs.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+
+  document.querySelectorAll(".block, .stat-row").forEach(function (el) {
+    el.style.opacity = "0";
+    el.style.transform = "translateY(24px)";
+    el.style.transition = "opacity 0.7s cubic-bezier(.4,0,.2,1), transform 0.7s cubic-bezier(.4,0,.2,1)";
+    obs.observe(el);
+  });
+})();
+
+/* ═══════════════════════════════════════════════════════════
+   MUTATION OBSERVER — re-track dynamically added buttons
+   ═══════════════════════════════════════════════════════════ */
+new MutationObserver(function () {
+  document.querySelectorAll(".pill:not([data-tracked])").forEach(function (el) {
+    el.setAttribute("data-tracked", "1");
+    trackCursor(el);
+  });
+  initMagneticButtons();
+}).observe(document.body, { childList: true, subtree: true });
 
 /* ═══════════════════════════════════════════════════════════
    INIT
