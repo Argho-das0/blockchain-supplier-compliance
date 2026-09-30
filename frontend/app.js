@@ -17,12 +17,15 @@ const CONTRACT_ABI = [
   "function COMPLIANCE_PERIOD() view returns (uint256)",
   "function ESCROW_PERIOD() view returns (uint256)",
   "function owner() view returns (address)",
+  "function paused() view returns (bool)",
   "function registerSupplier() payable",
   "function registerResource(uint8 _resourceType, uint256 _quantity)",
   "function updateResourceQuantity(uint8 _resourceType, uint256 _quantity)",
   "function checkAndDeactivate(address _supplier)",
   "function calculatePenalty(address _supplier) view returns (uint256)",
   "function payPenaltyAndReactivate() payable",
+  "function pause()",
+  "function unpause()",
   "function isResourceCompliant(address _supplier, uint8 _resourceType) view returns (bool)",
   "function remainingComplianceTime(address _supplier, uint8 _resourceType) view returns (uint256)",
   "function getTotalRegisteredSuppliers() view returns (uint256)",
@@ -247,8 +250,6 @@ document.getElementById("load-escrow").addEventListener("click", async () => {
     const readContract = getReadContract();
     const info = await readContract.getEscrowInfo(userAddress);
 
-    // ethers.js returns tuples as arrays with named properties.
-    // Read by index to be safe:
     const balance = info[0];
     const releaseTime = info[1];
     const releasable = info[2];
@@ -312,6 +313,55 @@ document.getElementById("load-reputation").addEventListener("click", async () =>
     `;
   } catch (err) {
     log("❌ Failed to load reputation: " + (err.reason || err.message));
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// EMERGENCY PAUSE
+// ═══════════════════════════════════════════════════════════
+document.getElementById("check-pause-status").addEventListener("click", async () => {
+  try {
+    const readContract = getReadContract();
+    const isPaused = await readContract.paused();
+    document.getElementById("pause-status").innerHTML = isPaused
+      ? `<p style="color:#dc2626;"><strong>⚠️ CONTRACT PAUSED</strong> — all state-changing operations are halted.</p>`
+      : `<p style="color:#16a34a;"><strong>✅ Contract active</strong> — operations running normally.</p>`;
+  } catch (err) {
+    log("❌ Failed to check pause status: " + (err.reason || err.message));
+  }
+});
+
+document.getElementById("pause-contract").addEventListener("click", async () => {
+  try {
+    const readContract = getReadContract();
+    const ownerAddress = await readContract.owner();
+    if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+      log("❌ Only the compliance officer (" + ownerAddress.slice(0, 8) + "...) can pause the contract.");
+      return;
+    }
+    const tx = await contract.pause();
+    log("Pause tx sent: " + tx.hash);
+    await tx.wait();
+    log("⏸️ Contract PAUSED. All state-changing operations halted.");
+  } catch (err) {
+    log("❌ Pause failed: " + (err.reason || err.message));
+  }
+});
+
+document.getElementById("unpause-contract").addEventListener("click", async () => {
+  try {
+    const readContract = getReadContract();
+    const ownerAddress = await readContract.owner();
+    if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+      log("❌ Only the compliance officer (" + ownerAddress.slice(0, 8) + "...) can unpause the contract.");
+      return;
+    }
+    const tx = await contract.unpause();
+    log("Unpause tx sent: " + tx.hash);
+    await tx.wait();
+    log("▶️ Contract UNPAUSED. Operations resumed.");
+  } catch (err) {
+    log("❌ Unpause failed: " + (err.reason || err.message));
   }
 });
 

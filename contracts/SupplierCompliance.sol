@@ -6,7 +6,8 @@ import {AutomationCompatibleInterface} from "@chainlink/contracts/src/v0.8/autom
 /**
  * @title SupplierCompliance
  * @dev Blockchain-based Supplier Registration, Resource Management, and Compliance System.
- *      Includes escrow-backed penalties and a reputation score for each supplier.
+ *      Includes escrow-backed penalties, a reputation score for each supplier, and
+ *      an emergency pause mechanism for the compliance officer.
  */
 contract SupplierCompliance is AutomationCompatibleInterface {
     // ============================================================
@@ -73,12 +74,16 @@ contract SupplierCompliance is AutomationCompatibleInterface {
 
     address public immutable owner;
 
+    /// @notice Emergency pause. When true, all state-changing operations revert.
+    bool public paused;
+
     // ============================================================
     // CONSTRUCTOR
     // ============================================================
     constructor() {
         owner = msg.sender;
         aidFundAddress = msg.sender;
+        paused = false;
     }
 
     // ============================================================
@@ -95,6 +100,8 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     event EscrowForfeited(address indexed supplier, uint256 amount, address recipient);
     event AidFundAddressUpdated(address indexed newAddress);
     event ReputationChanged(address indexed supplier, uint256 oldScore, uint256 newScore, string reason);
+    event ContractPaused(address indexed by, uint256 timestamp);
+    event ContractUnpaused(address indexed by, uint256 timestamp);
 
     // ============================================================
     // MODIFIERS
@@ -120,10 +127,15 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         _;
     }
 
+    modifier whenNotPaused() {
+        require(!paused, "Contract is paused");
+        _;
+    }
+
     // ============================================================
     // SUPPLIER REGISTRATION
     // ============================================================
-    function registerSupplier() external payable {
+    function registerSupplier() external payable whenNotPaused {
         require(!suppliers[msg.sender].registered, "Supplier already registered");
         require(msg.value == REGISTRATION_FEE, "Incorrect registration fee");
 
@@ -149,6 +161,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         external
         onlyActive
         validResource(_resourceType)
+        whenNotPaused
     {
         ResourceType rType = ResourceType(_resourceType);
         Supplier storage s = suppliers[msg.sender];
@@ -175,6 +188,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         external
         onlyActive
         validResource(_resourceType)
+        whenNotPaused
     {
         ResourceType rType = ResourceType(_resourceType);
         Supplier storage s = suppliers[msg.sender];
@@ -227,7 +241,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         return deadline - block.timestamp;
     }
 
-    function checkAndDeactivate(address _supplier) external onlyOwner {
+    function checkAndDeactivate(address _supplier) external onlyOwner whenNotPaused {
         Supplier storage s = suppliers[_supplier];
         require(s.registered, "Supplier not registered");
         require(s.active, "Supplier already inactive");
@@ -279,7 +293,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         return (false, bytes(""));
     }
 
-    function performUpkeep(bytes calldata performData) external override {
+    function performUpkeep(bytes calldata performData) external override whenNotPaused {
         address supplierAddr = abi.decode(performData, (address));
 
         Supplier storage s = suppliers[supplierAddr];
@@ -329,7 +343,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         }
     }
 
-    function payPenaltyAndReactivate() external payable {
+    function payPenaltyAndReactivate() external payable whenNotPaused {
         Supplier storage s = suppliers[msg.sender];
         require(s.registered, "Supplier not registered");
         require(!s.active, "Supplier is active");
@@ -432,6 +446,28 @@ contract SupplierCompliance is AutomationCompatibleInterface {
 
         releasable = windowElapsed && supplierActive;
         forfeitEligible = !windowElapsed && !supplierActive;
+    }
+
+    // ============================================================
+    // EMERGENCY PAUSE
+    // ============================================================
+    /**
+     * @notice Pause all state-changing operations.
+     * @dev Restricted to the compliance officer. View functions continue to work.
+     */
+    function pause() external onlyOwner {
+        require(!paused, "Already paused");
+        paused = true;
+        emit ContractPaused(msg.sender, block.timestamp);
+    }
+
+    /**
+     * @notice Resume normal operation.
+     */
+    function unpause() external onlyOwner {
+        require(paused, "Not paused");
+        paused = false;
+        emit ContractUnpaused(msg.sender, block.timestamp);
     }
 
     // ============================================================
