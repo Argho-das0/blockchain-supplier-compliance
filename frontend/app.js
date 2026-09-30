@@ -40,7 +40,19 @@ const CONTRACT_ABI = [
   "function getTotalEscrowHeld() view returns (uint256)",
   "function escrowBalance(address) view returns (uint256)",
   "function getSupplierReputation(address _supplier) view returns (uint256)",
-  "function getReputationTier(address _supplier) view returns (string)"
+  "function getReputationTier(address _supplier) view returns (string)",
+  "event SupplierRegistered(address indexed supplier, uint256 timestamp)",
+  "event ResourceRegistered(address indexed supplier, string resource)",
+  "event ResourceUpdated(address indexed supplier, string resource, uint256 quantity)",
+  "event SupplierDeactivated(address indexed supplier, uint256 timestamp)",
+  "event PenaltyPaid(address indexed supplier, uint256 amount)",
+  "event SupplierReactivated(address indexed supplier, uint256 timestamp)",
+  "event EscrowDeposited(address indexed supplier, uint256 amount, uint256 releaseTime)",
+  "event EscrowReleased(address indexed supplier, uint256 amount)",
+  "event EscrowForfeited(address indexed supplier, uint256 amount, address recipient)",
+  "event ReputationChanged(address indexed supplier, uint256 oldScore, uint256 newScore, string reason)",
+  "event ContractPaused(address indexed by, uint256 timestamp)",
+  "event ContractUnpaused(address indexed by, uint256 timestamp)"
 ];
 
 let provider, signer, contract, userAddress;
@@ -363,6 +375,76 @@ document.getElementById("unpause-contract").addEventListener("click", async () =
   } catch (err) {
     log("❌ Unpause failed: " + (err.reason || err.message));
   }
+});
+
+// ═══════════════════════════════════════════════════════════
+// LIVE EVENT LOG
+// ═══════════════════════════════════════════════════════════
+let eventListeners = [];
+let listening = false;
+
+function shorten(addr) {
+  if (!addr || addr.length < 10) return addr;
+  return addr.slice(0, 6) + "..." + addr.slice(-4);
+}
+
+function appendEvent(line) {
+  const el = document.getElementById("event-log");
+  if (!el) return;
+  const time = new Date().toLocaleTimeString();
+  el.innerHTML = `<div>[${time}] ${line}</div>` + el.innerHTML;
+}
+
+async function startListening() {
+  if (listening) return;
+  await loadContractAddress();
+  const readContract = getReadContract();
+
+  const handlers = [
+    ["SupplierRegistered", (supplier, ts) => appendEvent(`🆕 SupplierRegistered: ${shorten(supplier)}`)],
+    ["ResourceRegistered", (supplier, resource) => appendEvent(`📦 ResourceRegistered: ${resource} (${shorten(supplier)})`)],
+    ["ResourceUpdated", (supplier, resource, qty) => appendEvent(`🔄 ResourceUpdated: ${resource} = ${qty.toString()}`)],
+    ["SupplierDeactivated", (supplier, ts) => appendEvent(`🚨 SupplierDeactivated: ${shorten(supplier)}`)],
+    ["PenaltyPaid", (supplier, amount) => appendEvent(`💰 PenaltyPaid: ${amount.toString()} wei`)],
+    ["SupplierReactivated", (supplier, ts) => appendEvent(`✅ SupplierReactivated: ${shorten(supplier)}`)],
+    ["EscrowDeposited", (supplier, amount, release) => appendEvent(`🔒 EscrowDeposited: ${amount.toString()} wei`)],
+    ["EscrowReleased", (supplier, amount) => appendEvent(`💵 EscrowReleased: ${amount.toString()} wei`)],
+    ["EscrowForfeited", (supplier, amount, recipient) => appendEvent(`💸 EscrowForfeited: ${amount.toString()} wei to ${shorten(recipient)}`)],
+    ["ReputationChanged", (supplier, oldScore, newScore, reason) => appendEvent(`⭐ Reputation: ${oldScore} → ${newScore} (${reason})`)],
+    ["ContractPaused", (by, ts) => appendEvent(`⏸️ ContractPaused by ${shorten(by)}`)],
+    ["ContractUnpaused", (by, ts) => appendEvent(`▶️ ContractUnpaused by ${shorten(by)}`)],
+  ];
+
+  for (const [name, handler] of handlers) {
+    const wrapped = (...args) => handler(...args);
+    readContract.on(name, wrapped);
+    eventListeners.push({ name, wrapped });
+  }
+
+  listening = true;
+  document.getElementById("toggle-events").textContent = "Stop Listening";
+  appendEvent("🎧 Listening for events...");
+}
+
+function stopListening() {
+  if (!listening) return;
+  const readContract = getReadContract();
+  for (const { name, wrapped } of eventListeners) {
+    readContract.off(name, wrapped);
+  }
+  eventListeners = [];
+  listening = false;
+  document.getElementById("toggle-events").textContent = "Start Listening";
+  appendEvent("⏸️ Stopped listening.");
+}
+
+document.getElementById("toggle-events").addEventListener("click", async () => {
+  if (listening) stopListening();
+  else await startListening();
+});
+
+document.getElementById("clear-events").addEventListener("click", () => {
+  document.getElementById("event-log").innerHTML = `<p style="color:#94a3b8; margin:0;">Cleared.</p>`;
 });
 
 // ═══════════════════════════════════════════════════════════

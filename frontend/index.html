@@ -81,6 +81,16 @@
       <button id="load-stats">Load Statistics</button>
       <div id="stats-output"></div>
     </section>
+
+    <section id="events-section">
+      <h2>Live Event Log</h2>
+      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Real-time feed of contract events. New events appear as transactions are mined.</p>
+      <button id="toggle-events">Start Listening</button>
+      <button id="clear-events">Clear</button>
+      <div id="event-log" style="margin-top:12px; max-height:280px; overflow-y:auto; background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-family:'Courier New',monospace; font-size:12.5px; line-height:1.7;">
+        <p style="color:#94a3b8; margin:0;">Listening paused.</p>
+      </div>
+    </section>
   </main>
 
   <script src="ethers.min.js"></script>
