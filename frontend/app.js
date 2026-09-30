@@ -143,6 +143,67 @@ document.getElementById("update-quantity").addEventListener("click", async () =>
 });
 
 // ═══════════════════════════════════════════════════════════
+// COMPLIANCE COUNTDOWN
+// ═══════════════════════════════════════════════════════════
+function formatDuration(seconds) {
+  if (seconds <= 0) return "EXPIRED";
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const parts = [];
+  if (d > 0) parts.push(d + "d");
+  if (h > 0) parts.push(h + "h");
+  if (m > 0) parts.push(m + "m");
+  if (d === 0 && h === 0) parts.push(s + "s");
+  return parts.join(" ");
+}
+
+document.getElementById("load-countdown").addEventListener("click", async () => {
+  try {
+    const readContract = getReadContract();
+    const resourceNames = ["Water", "Clothing", "Medicine", "Food"];
+    let html = "";
+
+    for (let i = 0; i < 4; i++) {
+      const qty = await readContract.getSupplierResourceQuantity(userAddress, i);
+      if (qty.toString() === "0") continue;
+
+      const remaining = await readContract.remainingComplianceTime(userAddress, i);
+      const seconds = Number(remaining);
+
+      let color, status;
+      if (seconds === 0) {
+        color = "#dc2626";
+        status = "EXPIRED — supplier will be deactivated on next check";
+      } else if (seconds < 3600) {
+        color = "#ea580c";
+        status = "URGENT — under 1 hour remaining";
+      } else if (seconds < 21600) {
+        color = "#eab308";
+        status = "Approaching deadline";
+      } else {
+        color = "#16a34a";
+        status = "Compliant";
+      }
+
+      html += `
+        <div style="margin-bottom:12px; padding:10px; background:#f9fafb; border-left:4px solid ${color}; border-radius:6px;">
+          <strong>${resourceNames[i]}</strong> — quantity ${qty.toString()}<br>
+          <span style="color:${color};">${status}</span><br>
+          <span style="font-family:monospace; font-size:13px;">Time remaining: ${formatDuration(seconds)}</span>
+        </div>
+      `;
+    }
+
+    if (!html) html = "<p>No resources registered yet. Register a resource to see its countdown.</p>";
+    document.getElementById("countdown-output").innerHTML = html;
+  } catch (err) {
+    log("❌ Failed to load countdown: " + (err.reason || err.message));
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
 // TIME SIMULATION
 // ═══════════════════════════════════════════════════════════
 async function advanceBlockchainTime(seconds, label) {
