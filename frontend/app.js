@@ -82,6 +82,11 @@ document.getElementById("connect-wallet").addEventListener("click", async () => 
       document.getElementById("account").textContent =
         userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
       log("✅ Wallet connected: " + userAddress);
+
+      // Auto-start the event log once the wallet is connected
+      if (!listening) {
+        await startListening();
+      }
     } catch (err) {
       log("❌ Error connecting wallet: " + err.message);
     }
