@@ -35,7 +35,9 @@ const CONTRACT_ABI = [
   "function getSupplierResourceQuantity(address _supplier, uint8 _resourceType) view returns (uint256)",
   "function getEscrowInfo(address _supplier) view returns (uint256, uint256, bool, bool)",
   "function getTotalEscrowHeld() view returns (uint256)",
-  "function escrowBalance(address) view returns (uint256)"
+  "function escrowBalance(address) view returns (uint256)",
+  "function getSupplierReputation(address _supplier) view returns (uint256)",
+  "function getReputationTier(address _supplier) view returns (string)"
 ];
 
 let provider, signer, contract, userAddress;
@@ -283,6 +285,37 @@ document.getElementById("load-escrow").addEventListener("click", async () => {
 });
 
 // ═══════════════════════════════════════════════════════════
+// LOAD REPUTATION
+// ═══════════════════════════════════════════════════════════
+document.getElementById("load-reputation").addEventListener("click", async () => {
+  try {
+    const readContract = getReadContract();
+    const score = await readContract.getSupplierReputation(userAddress);
+    const tier = await readContract.getReputationTier(userAddress);
+
+    const n = Number(score);
+    let barColor;
+    if (n >= 180) barColor = "#8b5cf6";
+    else if (n >= 150) barColor = "#eab308";
+    else if (n >= 120) barColor = "#9ca3af";
+    else if (n >= 80)  barColor = "#b45309";
+    else               barColor = "#dc2626";
+
+    const percentage = Math.min(100, (n / 200) * 100);
+
+    document.getElementById("reputation-status").innerHTML = `
+      <p><strong>Score:</strong> ${score.toString()} / 200</p>
+      <p><strong>Tier:</strong> ${tier}</p>
+      <div style="background:#e5e7eb; border-radius:6px; height:14px; margin-top:8px; overflow:hidden;">
+        <div style="background:${barColor}; width:${percentage}%; height:100%;"></div>
+      </div>
+    `;
+  } catch (err) {
+    log("❌ Failed to load reputation: " + (err.reason || err.message));
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
 // LOAD STATISTICS
 // ═══════════════════════════════════════════════════════════
 document.getElementById("load-stats").addEventListener("click", async () => {
@@ -299,6 +332,16 @@ document.getElementById("load-stats").addEventListener("click", async () => {
     const medicine = await readContract.getAggregateResourceQuantity(2);
     const food = await readContract.getAggregateResourceQuantity(3);
 
+    // Reputation only exists for wallets that registered as suppliers.
+    let reputationLine = "";
+    try {
+      const myReputation = await readContract.getSupplierReputation(userAddress);
+      const myTier = await readContract.getReputationTier(userAddress);
+      reputationLine = `<p>Your Reputation: ${myReputation} (${myTier})</p>`;
+    } catch (e) {
+      reputationLine = `<p>Your Reputation: Not registered</p>`;
+    }
+
     document.getElementById("stats-output").innerHTML = `
       <p>Total Suppliers: ${total}</p>
       <p>Active Suppliers: ${active}</p>
@@ -306,6 +349,7 @@ document.getElementById("load-stats").addEventListener("click", async () => {
       <p>Verified Suppliers: ${verified}</p>
       <p>Total Penalties Forfeited: ${penalties} wei</p>
       <p>Total Escrow Held: ${escrowHeld} wei</p>
+      ${reputationLine}
       <h3>Aggregate Quantities</h3>
       <p>Water: ${water}</p>
       <p>Clothing: ${clothing}</p>

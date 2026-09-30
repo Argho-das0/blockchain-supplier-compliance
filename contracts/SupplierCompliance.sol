@@ -5,25 +5,28 @@ import {AutomationCompatibleInterface} from "@chainlink/contracts/src/v0.8/autom
 
 /**
  * @title SupplierCompliance
- * @dev Blockchain-based Supplier Registration, Resource Management, and Compliance System
- * @notice Manages suppliers, humanitarian resources, one-day compliance mechanism,
- *         penalties, and statistics on an Ethereum-compatible blockchain.
- *         Includes Chainlink Automation support for automatic deactivation of
- *         non-compliant suppliers once their compliance window has expired.
- *         Penalties are held in escrow and returned to reformed suppliers after
- *         30 days of good behaviour, or forfeited to an aid fund on repeat offence.
+ * @dev Blockchain-based Supplier Registration, Resource Management, and Compliance System.
+ *      Includes escrow-backed penalties and a reputation score for each supplier.
  */
 contract SupplierCompliance is AutomationCompatibleInterface {
     // ============================================================
     // CONSTANTS
     // ============================================================
     uint256 public constant REGISTRATION_FEE = 100000 wei;
-    uint256 public constant COMPLIANCE_PERIOD = 1 days; // one-day compliance mechanism
-    uint256 public constant PENALTY_RATE_LOW = 200000 wei;   // 0-1 days
-    uint256 public constant PENALTY_RATE_MID = 400000 wei;   // 2-7 days
-    uint256 public constant PENALTY_RATE_HIGH = 800000 wei;  // 8-21 days
-    uint256 public constant PENALTY_RATE_MAX = 1000000 wei;  // >21 days
-    uint256 public constant ESCROW_PERIOD = 30 days;         // good-behaviour window
+    uint256 public constant COMPLIANCE_PERIOD = 1 days;
+    uint256 public constant PENALTY_RATE_LOW = 200000 wei;
+    uint256 public constant PENALTY_RATE_MID = 400000 wei;
+    uint256 public constant PENALTY_RATE_HIGH = 800000 wei;
+    uint256 public constant PENALTY_RATE_MAX = 1000000 wei;
+    uint256 public constant ESCROW_PERIOD = 30 days;
+
+    // Reputation constants
+    uint256 public constant REPUTATION_START = 100;
+    uint256 public constant REPUTATION_MAX = 200;
+    uint256 public constant REPUTATION_GAIN_PER_UPDATE = 1;
+    uint256 public constant REPUTATION_PENALTY_FULL = 20;
+    uint256 public constant REPUTATION_PENALTY_PROMPT = 10;
+    uint256 public constant REPUTATION_PROMPT_WINDOW = 1 hours;
 
     // ============================================================
     // ENUMS
@@ -37,9 +40,9 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     struct Resource {
         ResourceType resourceType;
         uint256 quantity;
-        uint256 lastUpdated;      // timestamp of last quantity update
+        uint256 lastUpdated;
         bool registered;
-        bool compliant;          // whether currently compliant
+        bool compliant;
     }
 
     struct Supplier {
@@ -50,6 +53,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         bool active;
         bool registered;
         uint256 totalPenaltiesPaid;
+        uint256 reputationScore;
         ResourceType[] registeredResources;
         mapping(ResourceType => Resource) resources;
     }
@@ -62,21 +66,11 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     uint256 public totalPenaltiesCollected;
     uint256 public totalRegisteredSuppliers;
 
-    /// @notice Funds held in escrow for suppliers who paid a penalty and are
-    ///         currently inside their 30-day good-behaviour window.
     mapping(address => uint256) public escrowBalance;
-
-    /// @notice The timestamp at which each supplier's escrow window started.
     mapping(address => uint256) public escrowStartTime;
-
-    /// @notice Aggregate of all funds currently held in escrow.
     uint256 public totalEscrowHeld;
-
-    /// @notice Address that receives forfeited escrow funds.
     address public aidFundAddress;
 
-    /// @notice The compliance officer — the wallet that deployed the contract.
-    ///         Only this address may call checkAndDeactivate().
     address public immutable owner;
 
     // ============================================================
@@ -100,6 +94,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     event EscrowReleased(address indexed supplier, uint256 amount);
     event EscrowForfeited(address indexed supplier, uint256 amount, address recipient);
     event AidFundAddressUpdated(address indexed newAddress);
+    event ReputationChanged(address indexed supplier, uint256 oldScore, uint256 newScore, string reason);
 
     // ============================================================
     // MODIFIERS
@@ -128,9 +123,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     // ============================================================
     // SUPPLIER REGISTRATION
     // ============================================================
-    /**
-     * @notice Register a new supplier by paying the fixed registration fee.
-     */
     function registerSupplier() external payable {
         require(!suppliers[msg.sender].registered, "Supplier already registered");
         require(msg.value == REGISTRATION_FEE, "Incorrect registration fee");
@@ -141,19 +133,18 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         s.verified = true;
         s.active = true;
         s.registered = true;
+        s.reputationScore = REPUTATION_START;
 
         supplierAddresses.push(msg.sender);
         totalRegisteredSuppliers++;
 
         emit SupplierRegistered(msg.sender, block.timestamp);
+        emit ReputationChanged(msg.sender, 0, REPUTATION_START, "registration");
     }
 
     // ============================================================
     // RESOURCE REGISTRATION
     // ============================================================
-    /**
-     * @notice Register a predefined resource with an initial quantity.
-     */
     function registerResource(uint8 _resourceType, uint256 _quantity)
         external
         onlyActive
@@ -180,10 +171,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     // ============================================================
     // QUANTITY MANAGEMENT
     // ============================================================
-    /**
-     * @notice Update the quantity of a registered resource.
-     *         Refreshes compliance timestamp.
-     */
     function updateResourceQuantity(uint8 _resourceType, uint256 _quantity)
         external
         onlyActive
@@ -198,15 +185,21 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         s.resources[rType].lastUpdated = block.timestamp;
         s.resources[rType].compliant = true;
 
+        // Reward consistent updates with a small reputation gain.
+        if (s.reputationScore < REPUTATION_MAX) {
+            uint256 oldScore = s.reputationScore;
+            uint256 newScore = oldScore + REPUTATION_GAIN_PER_UPDATE;
+            if (newScore > REPUTATION_MAX) newScore = REPUTATION_MAX;
+            s.reputationScore = newScore;
+            emit ReputationChanged(msg.sender, oldScore, newScore, "compliance_update");
+        }
+
         emit ResourceUpdated(msg.sender, _resourceName(rType), _quantity);
     }
 
     // ============================================================
     // COMPLIANCE MONITORING
     // ============================================================
-    /**
-     * @notice Check whether a supplier's resource is compliant.
-     */
     function isResourceCompliant(address _supplier, uint8 _resourceType)
         public
         view
@@ -220,9 +213,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         return (block.timestamp - s.resources[rType].lastUpdated) <= COMPLIANCE_PERIOD;
     }
 
-    /**
-     * @notice Returns remaining compliance time in seconds for a resource.
-     */
     function remainingComplianceTime(address _supplier, uint8 _resourceType)
         external
         view
@@ -237,13 +227,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         return deadline - block.timestamp;
     }
 
-    /**
-     * @notice Identify and deactivate a non-compliant supplier.
-     * @dev Restricted to the compliance officer (the contract owner) to prevent
-     *      unauthorized parties from triggering deactivations.
-     *      This is the manual override — automatic deactivation is handled by
-     *      Chainlink Automation via checkUpkeep/performUpkeep below.
-     */
     function checkAndDeactivate(address _supplier) external onlyOwner {
         Supplier storage s = suppliers[_supplier];
         require(s.registered, "Supplier not registered");
@@ -259,8 +242,14 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         }
 
         if (nonCompliant) {
+            uint256 oldRep = s.reputationScore;
+            uint256 newRep = oldRep > REPUTATION_PENALTY_FULL ? oldRep - REPUTATION_PENALTY_FULL : 0;
+            s.reputationScore = newRep;
+
             s.active = false;
             s.deactivationTimestamp = block.timestamp;
+
+            emit ReputationChanged(_supplier, oldRep, newRep, "deactivation");
             emit SupplierDeactivated(_supplier, block.timestamp);
         }
     }
@@ -268,11 +257,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     // ============================================================
     // CHAINLINK AUTOMATION
     // ============================================================
-    /**
-     * @notice Off-chain check for Chainlink Automation.
-     * @dev Returns (true, abi.encode(nonCompliantSupplier)) if any active
-     *      supplier has at least one resource past the compliance deadline.
-     */
     function checkUpkeep(bytes calldata /* checkData */)
         external
         view
@@ -295,9 +279,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         return (false, bytes(""));
     }
 
-    /**
-     * @notice On-chain execution triggered by Chainlink Automation.
-     */
     function performUpkeep(bytes calldata performData) external override {
         address supplierAddr = abi.decode(performData, (address));
 
@@ -316,17 +297,20 @@ contract SupplierCompliance is AutomationCompatibleInterface {
 
         require(nonCompliant, "Supplier is still compliant");
 
+        uint256 oldRep = s.reputationScore;
+        uint256 newRep = oldRep > REPUTATION_PENALTY_FULL ? oldRep - REPUTATION_PENALTY_FULL : 0;
+        s.reputationScore = newRep;
+
         s.active = false;
         s.deactivationTimestamp = block.timestamp;
+
+        emit ReputationChanged(supplierAddr, oldRep, newRep, "deactivation");
         emit SupplierDeactivated(supplierAddr, block.timestamp);
     }
 
     // ============================================================
     // PENALTY CALCULATION & REACTIVATION
     // ============================================================
-    /**
-     * @notice Calculate penalty based on non-compliance duration.
-     */
     function calculatePenalty(address _supplier) public view returns (uint256) {
         Supplier storage s = suppliers[_supplier];
         require(s.registered, "Supplier not registered");
@@ -345,13 +329,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         }
     }
 
-    /**
-     * @notice Pay penalty and reactivate supplier.
-     * @dev The payment is deposited into the supplier's escrow account rather
-     *      than the general penalty pool. It is returned to the supplier after
-     *      30 days of good behaviour, or forfeited to the aid fund on repeat
-     *      offence within the window.
-     */
     function payPenaltyAndReactivate() external payable {
         Supplier storage s = suppliers[msg.sender];
         require(s.registered, "Supplier not registered");
@@ -359,6 +336,15 @@ contract SupplierCompliance is AutomationCompatibleInterface {
 
         uint256 penalty = calculatePenalty(msg.sender);
         require(msg.value == penalty, "Incorrect penalty amount");
+
+        // Prompt-payment bonus: only deduct half reputation if paid within 1 hour.
+        uint256 reputationPenalty = (block.timestamp - s.deactivationTimestamp <= REPUTATION_PROMPT_WINDOW)
+            ? REPUTATION_PENALTY_PROMPT
+            : REPUTATION_PENALTY_FULL;
+
+        uint256 oldRep = s.reputationScore;
+        uint256 newRep = oldRep > reputationPenalty ? oldRep - reputationPenalty : 0;
+        s.reputationScore = newRep;
 
         // Route payment into escrow.
         escrowBalance[msg.sender] += msg.value;
@@ -375,6 +361,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
             s.resources[rType].compliant = true;
         }
 
+        emit ReputationChanged(msg.sender, oldRep, newRep, "penalty_paid");
         emit PenaltyPaid(msg.sender, msg.value);
         emit EscrowDeposited(msg.sender, msg.value, block.timestamp + ESCROW_PERIOD);
         emit SupplierReactivated(msg.sender, block.timestamp);
@@ -383,11 +370,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     // ============================================================
     // ESCROW MANAGEMENT
     // ============================================================
-    /**
-     * @notice Releases escrow to a supplier whose 30-day good-behaviour window
-     *         has elapsed without a further deactivation.
-     * @dev Callable by anyone. Conditions checked on-chain.
-     */
     function releaseEscrow(address _supplier) external {
         uint256 balance = escrowBalance[_supplier];
         require(balance > 0, "No escrow to release");
@@ -408,12 +390,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         emit EscrowReleased(_supplier, balance);
     }
 
-    /**
-     * @notice Forfeits the escrow of a supplier who was deactivated again
-     *         within their 30-day good-behaviour window.
-     * @dev Callable by anyone. If the supplier is currently inactive and still
-     *      inside the window, the escrow goes to the aid fund.
-     */
     function forfeitEscrow(address _supplier) external {
         uint256 balance = escrowBalance[_supplier];
         require(balance > 0, "No escrow to forfeit");
@@ -435,18 +411,12 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         emit EscrowForfeited(_supplier, balance, aidFundAddress);
     }
 
-    /**
-     * @notice Update the address that receives forfeited escrow.
-     */
     function setAidFundAddress(address _newAddress) external onlyOwner {
         require(_newAddress != address(0), "Invalid address");
         aidFundAddress = _newAddress;
         emit AidFundAddressUpdated(_newAddress);
     }
 
-    /**
-     * @notice View helper returning escrow balance, release time, and status flags.
-     */
     function getEscrowInfo(address _supplier)
         external
         view
@@ -465,15 +435,28 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     }
 
     // ============================================================
+    // REPUTATION VIEWS
+    // ============================================================
+    function getSupplierReputation(address _supplier) external view returns (uint256) {
+        return suppliers[_supplier].reputationScore;
+    }
+
+    function getReputationTier(address _supplier) external view returns (string memory) {
+        uint256 score = suppliers[_supplier].reputationScore;
+        if (score >= 180) return "Platinum";
+        if (score >= 150) return "Gold";
+        if (score >= 120) return "Silver";
+        if (score >= 80)  return "Bronze";
+        return "Probation";
+    }
+
+    // ============================================================
     // SUPPLIER STATISTICS
     // ============================================================
     function getTotalRegisteredSuppliers() external view returns (uint256) {
         return totalRegisteredSuppliers;
     }
 
-    /**
-     * @notice Returns all registered supplier addresses.
-     */
     function getAllSupplierAddresses() external view returns (address[] memory) {
         return supplierAddresses;
     }
