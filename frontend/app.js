@@ -57,10 +57,32 @@ const CONTRACT_ABI = [
 
 let provider, signer, contract, userAddress;
 
+// ═══════════════════════════════════════════════════════════
+// TOAST NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════
+function toast(message, type) {
+  type = type || "info";
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+  const el = document.createElement("div");
+  el.className = "toast " + type;
+  el.textContent = message;
+  container.appendChild(el);
+  setTimeout(function () {
+    el.style.transition = "opacity .3s, transform .3s";
+    el.style.opacity = "0";
+    el.style.transform = "translateX(100%)";
+    setTimeout(function () { el.remove(); }, 300);
+  }, 4500);
+}
+
+// ═══════════════════════════════════════════════════════════
+// LOG HELPER
+// ═══════════════════════════════════════════════════════════
 function log(message) {
   const output = document.getElementById("stats-output");
   if (output) {
-    output.innerHTML = `<p>${message}</p>` + output.innerHTML;
+    output.innerHTML = "<p>" + message + "</p>" + output.innerHTML;
   }
   console.log(message);
 }
@@ -70,6 +92,93 @@ function getReadContract() {
   return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, readProvider);
 }
 
+// ═══════════════════════════════════════════════════════════
+// SIDEBAR NAVIGATION
+// ═══════════════════════════════════════════════════════════
+const PAGE_TITLES = {
+  overview:   ["Overview", "Manage suppliers, resources, and compliance on-chain."],
+  supplier:   ["Supplier Registration", "Join the network by paying the fixed registration fee."],
+  resources:  ["Resources", "Register and update humanitarian resources."],
+  compliance: ["Compliance & Penalty", "Enforce the 24-hour rule and manage penalties."],
+  escrow:     ["Penalty Escrow", "Refundable deposits and aid fund forfeitures."],
+  reputation: ["Reputation", "Track supplier reliability with on-chain scores."],
+  admin:      ["Admin", "Compliance officer controls — pause and unpause."],
+  events:     ["Event Log & Statistics", "Real-time events and aggregated ecosystem stats."]
+};
+
+function switchSection(name) {
+  document.querySelectorAll(".nav-item").forEach(function (btn) {
+    btn.classList.toggle("active", btn.dataset.section === name);
+  });
+  document.querySelectorAll(".section").forEach(function (sec) {
+    sec.classList.toggle("active", sec.id === "section-" + name);
+  });
+  const info = PAGE_TITLES[name] || ["", ""];
+  const tEl = document.getElementById("page-title");
+  const sEl = document.getElementById("page-subtitle");
+  if (tEl) tEl.textContent = info[0];
+  if (sEl) sEl.textContent = info[1];
+  const mainArea = document.querySelector(".main-area");
+  if (mainArea) mainArea.scrollTop = 0;
+}
+
+document.querySelectorAll(".nav-item").forEach(function (btn) {
+  btn.addEventListener("click", function () { switchSection(btn.dataset.section); });
+});
+
+// ═══════════════════════════════════════════════════════════
+// OVERVIEW REFRESH
+// ═══════════════════════════════════════════════════════════
+async function refreshOverview() {
+  try {
+    await loadContractAddress();
+    const rc = getReadContract();
+
+    const total = await rc.getTotalRegisteredSuppliers();
+    const active = await rc.getActiveSuppliersCount();
+    const inactive = await rc.getInactiveSuppliersCount();
+    const escrow = await rc.getTotalEscrowHeld();
+    const water = await rc.getAggregateResourceQuantity(0);
+    const clothing = await rc.getAggregateResourceQuantity(1);
+    const medicine = await rc.getAggregateResourceQuantity(2);
+    const food = await rc.getAggregateResourceQuantity(3);
+
+    document.getElementById("ov-total").textContent = total.toString();
+    document.getElementById("ov-active").textContent = active.toString();
+    document.getElementById("ov-inactive").textContent = inactive.toString();
+    document.getElementById("ov-escrow").textContent = escrow.toString() + " wei";
+    document.getElementById("ov-water").textContent = water.toString();
+    document.getElementById("ov-clothing").textContent = clothing.toString();
+    document.getElementById("ov-medicine").textContent = medicine.toString();
+    document.getElementById("ov-food").textContent = food.toString();
+
+    const el = document.getElementById("overview-status");
+    if (!userAddress) {
+      el.innerHTML = '<p class="muted">Connect your wallet to see your status.</p>';
+      return;
+    }
+    const info = await rc.getSupplierInfo(userAddress);
+    if (!info[2]) {
+      el.innerHTML = '<p class="muted">You are not registered as a supplier yet.</p>';
+      return;
+    }
+    const reputation = await rc.getSupplierReputation(userAddress);
+    const tier = await rc.getReputationTier(userAddress);
+    el.innerHTML =
+      "<p><strong>Wallet:</strong> <code>" + userAddress + "</code></p>" +
+      "<p><strong>Status:</strong> " + (info[3] ? "✅ Active" : "❌ Inactive") + "</p>" +
+      "<p><strong>Reputation:</strong> " + reputation.toString() + " <span style='color:#6b7280;'>(" + tier + ")</span></p>" +
+      "<p><strong>Resources:</strong> " + info[5].toString() + "</p>";
+  } catch (err) {
+    console.error("refreshOverview failed:", err.message);
+  }
+}
+
+document.getElementById("refresh-overview").addEventListener("click", refreshOverview);
+
+// ═══════════════════════════════════════════════════════════
+// WALLET CONNECT
+// ═══════════════════════════════════════════════════════════
 document.getElementById("connect-wallet").addEventListener("click", async () => {
   if (window.ethereum) {
     try {
@@ -79,49 +188,73 @@ document.getElementById("connect-wallet").addEventListener("click", async () => 
       signer = provider.getSigner();
       userAddress = await signer.getAddress();
       contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
       document.getElementById("account").textContent =
         userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
-      log("✅ Wallet connected: " + userAddress);
+      document.getElementById("account-chip").classList.remove("hidden");
+      document.getElementById("connect-label").textContent = "Connected";
 
-      // Auto-start the event log once the wallet is connected
+      log("✅ Wallet connected: " + userAddress);
+      toast("Wallet connected", "success");
+
       if (!listening) {
         await startListening();
       }
+      await refreshOverview();
     } catch (err) {
       log("❌ Error connecting wallet: " + err.message);
+      toast("Connection failed: " + err.message, "error");
     }
   } else {
     log("MetaMask not detected. Please install MetaMask.");
+    toast("MetaMask not detected", "error");
   }
 });
 
+// ═══════════════════════════════════════════════════════════
+// REGISTER SUPPLIER
+// ═══════════════════════════════════════════════════════════
 document.getElementById("register-supplier").addEventListener("click", async () => {
   try {
-    const readContract = getReadContract();
-    const fee = await readContract.REGISTRATION_FEE();
+    const rc = getReadContract();
+    const fee = await rc.REGISTRATION_FEE();
     const tx = await contract.registerSupplier({ value: fee });
     log("Registration tx sent: " + tx.hash);
+    toast("Registration submitted…", "info");
     await tx.wait();
     log("✅ Supplier registered successfully!");
+    toast("Supplier registered", "success");
+    await refreshOverview();
   } catch (err) {
-    log("❌ Registration failed: " + (err.reason || err.message));
+    const msg = err.reason || err.message;
+    log("❌ Registration failed: " + msg);
+    toast("Registration failed: " + msg, "error");
   }
 });
 
+// ═══════════════════════════════════════════════════════════
+// RESOURCE MANAGEMENT
+// ═══════════════════════════════════════════════════════════
 document.getElementById("register-resource").addEventListener("click", async () => {
   try {
     const type = document.getElementById("resource-type").value;
     const qty = document.getElementById("resource-quantity").value;
     if (!qty || Number(qty) <= 0) {
       log("❌ Enter a quantity greater than zero.");
+      toast("Enter a quantity greater than zero", "warn");
       return;
     }
     const tx = await contract.registerResource(type, qty);
     log("Resource registration tx: " + tx.hash);
+    toast("Resource registration submitted…", "info");
     await tx.wait();
     log("✅ Resource registered successfully!");
+    toast("Resource registered", "success");
+    await refreshOverview();
   } catch (err) {
-    log("❌ Resource registration failed: " + (err.reason || err.message));
+    const msg = err.reason || err.message;
+    log("❌ Resource registration failed: " + msg);
+    toast("Resource registration failed: " + msg, "error");
   }
 });
 
@@ -131,14 +264,20 @@ document.getElementById("update-quantity").addEventListener("click", async () =>
     const qty = document.getElementById("resource-quantity").value;
     if (!qty || Number(qty) <= 0) {
       log("❌ Enter a quantity greater than zero.");
+      toast("Enter a quantity greater than zero", "warn");
       return;
     }
     const tx = await contract.updateResourceQuantity(type, qty);
     log("Update tx: " + tx.hash);
+    toast("Update submitted…", "info");
     await tx.wait();
     log("✅ Quantity updated and 24h compliance timer refreshed!");
+    toast("Quantity updated", "success");
+    await refreshOverview();
   } catch (err) {
-    log("❌ Update failed: " + (err.reason || err.message));
+    const msg = err.reason || err.message;
+    log("❌ Update failed: " + msg);
+    toast("Update failed: " + msg, "error");
   }
 });
 
@@ -161,45 +300,46 @@ function formatDuration(seconds) {
 
 document.getElementById("load-countdown").addEventListener("click", async () => {
   try {
-    const readContract = getReadContract();
+    const rc = getReadContract();
     const resourceNames = ["Water", "Clothing", "Medicine", "Food"];
+    const icons = ["💧", "👕", "💊", "🍚"];
     let html = "";
 
     for (let i = 0; i < 4; i++) {
-      const qty = await readContract.getSupplierResourceQuantity(userAddress, i);
+      const qty = await rc.getSupplierResourceQuantity(userAddress, i);
       if (qty.toString() === "0") continue;
 
-      const remaining = await readContract.remainingComplianceTime(userAddress, i);
+      const remaining = await rc.remainingComplianceTime(userAddress, i);
       const seconds = Number(remaining);
 
       let color, status;
       if (seconds === 0) {
-        color = "#dc2626";
-        status = "EXPIRED — supplier will be deactivated on next check";
+        color = "#dc2626"; status = "EXPIRED — will be deactivated";
       } else if (seconds < 3600) {
-        color = "#ea580c";
-        status = "URGENT — under 1 hour remaining";
+        color = "#ea580c"; status = "URGENT — under 1 hour remaining";
       } else if (seconds < 21600) {
-        color = "#eab308";
-        status = "Approaching deadline";
+        color = "#eab308"; status = "Approaching deadline";
       } else {
-        color = "#16a34a";
-        status = "Compliant";
+        color = "#16a34a"; status = "Compliant";
       }
 
-      html += `
-        <div style="margin-bottom:12px; padding:10px; background:#f9fafb; border-left:4px solid ${color}; border-radius:6px;">
-          <strong>${resourceNames[i]}</strong> — quantity ${qty.toString()}<br>
-          <span style="color:${color};">${status}</span><br>
-          <span style="font-family:monospace; font-size:13px;">Time remaining: ${formatDuration(seconds)}</span>
-        </div>
-      `;
+      html +=
+        '<div style="margin-bottom:12px; padding:14px; background:#fff; border-left:4px solid ' + color + '; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,.04);">' +
+        '<div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">' +
+        '<span style="font-size:18px;">' + icons[i] + '</span>' +
+        '<strong>' + resourceNames[i] + '</strong>' +
+        '<span style="color:#6b7280; font-size:12px;">— quantity ' + qty.toString() + '</span>' +
+        '</div>' +
+        '<div style="color:' + color + '; font-weight:600; font-size:13px;">' + status + '</div>' +
+        '<div style="font-family:monospace; font-size:12.5px; color:#4b5563; margin-top:4px;">Time remaining: ' + formatDuration(seconds) + '</div>' +
+        '</div>';
     }
 
-    if (!html) html = "<p>No resources registered yet. Register a resource to see its countdown.</p>";
+    if (!html) html = "<p class='muted'>No resources registered yet.</p>";
     document.getElementById("countdown-output").innerHTML = html;
   } catch (err) {
     log("❌ Failed to load countdown: " + (err.reason || err.message));
+    toast("Countdown failed", "error");
   }
 });
 
@@ -211,54 +351,56 @@ async function advanceBlockchainTime(seconds, label) {
     const localProvider = new ethers.providers.JsonRpcProvider(RPC_URL);
     await localProvider.send("evm_increaseTime", [seconds]);
     await localProvider.send("evm_mine", []);
-
-    const timeStatus = document.getElementById("time-status");
-    if (timeStatus) timeStatus.innerText = `Fast-forwarded: ${label}`;
-    log(`⏩ Advanced blockchain time by ${label}.`);
+    document.getElementById("time-status").innerText = "Fast-forwarded: " + label;
+    log("⏩ Advanced blockchain time by " + label + ".");
+    toast("Time advanced by " + label, "success");
   } catch (err) {
     log("❌ Failed to advance time: " + err.message);
+    toast("Time advance failed (Sepolia doesn't support this)", "error");
   }
 }
 
-document.getElementById("skip-1-day").addEventListener("click", () => advanceBlockchainTime(90000, "25 Hours"));
-document.getElementById("skip-3-days").addEventListener("click", () => advanceBlockchainTime(259200, "3 Days"));
-document.getElementById("skip-10-days").addEventListener("click", () => advanceBlockchainTime(864000, "10 Days"));
+document.getElementById("skip-1-day").addEventListener("click", function () { advanceBlockchainTime(90000, "25 Hours"); });
+document.getElementById("skip-3-days").addEventListener("click", function () { advanceBlockchainTime(259200, "3 Days"); });
+document.getElementById("skip-10-days").addEventListener("click", function () { advanceBlockchainTime(864000, "10 Days"); });
 
 // ═══════════════════════════════════════════════════════════
-// CHECK COMPLIANCE & DEACTIVATE
+// CHECK COMPLIANCE
 // ═══════════════════════════════════════════════════════════
 document.getElementById("check-compliance").addEventListener("click", async () => {
   try {
-    const readContract = getReadContract();
-    const infoBefore = await readContract.getSupplierInfo(userAddress);
+    const rc = getReadContract();
+    const infoBefore = await rc.getSupplierInfo(userAddress);
     if (!infoBefore[2]) {
-      log("❌ Wallet is not registered as a supplier.");
+      toast("Wallet is not registered as a supplier", "warn");
       return;
     }
-
     if (!infoBefore[3]) {
-      log("⚠️ Supplier is already INACTIVE (deactivated).");
+      toast("Supplier is already INACTIVE", "warn");
       return;
     }
-
-    const ownerAddress = await readContract.owner();
+    const ownerAddress = await rc.owner();
     if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
-      log("❌ Only the compliance officer (" + ownerAddress.slice(0, 8) + "...) can trigger deactivation.");
+      toast("Only the compliance officer can deactivate", "error");
       return;
     }
-
     const tx = await contract.checkAndDeactivate(userAddress);
     log("Check compliance tx sent: " + tx.hash);
+    toast("Compliance check submitted…", "info");
     await tx.wait();
-
-    const infoAfter = await readContract.getSupplierInfo(userAddress);
+    const infoAfter = await rc.getSupplierInfo(userAddress);
     if (!infoAfter[3]) {
       log("🚨 Supplier non-compliant! Status changed to INACTIVE.");
+      toast("Supplier deactivated", "warn");
     } else {
-      log("✅ Supplier is currently COMPLIANT (within the 24-hour update window).");
+      log("✅ Supplier is currently COMPLIANT.");
+      toast("Supplier is compliant", "success");
     }
+    await refreshOverview();
   } catch (err) {
-    log("❌ Compliance check failed: " + (err.reason || err.message));
+    const msg = err.reason || err.message;
+    log("❌ Compliance check failed: " + msg);
+    toast("Compliance check failed: " + msg, "error");
   }
 });
 
@@ -267,67 +409,54 @@ document.getElementById("check-compliance").addEventListener("click", async () =
 // ═══════════════════════════════════════════════════════════
 document.getElementById("calculate-penalty").addEventListener("click", async () => {
   try {
-    const readContract = getReadContract();
-    const info = await readContract.getSupplierInfo(userAddress);
-    if (!info[2]) {
-      log("❌ Wallet is not registered as a supplier.");
-      return;
-    }
-
-    if (info[3]) {
-      log("ℹ️ Supplier is currently ACTIVE. Penalty applies only after deactivation.");
-      return;
-    }
-
-    const penalty = await readContract.calculatePenalty(userAddress);
-    log(`💰 Calculated Penalty: ${penalty.toString()} wei`);
+    const rc = getReadContract();
+    const info = await rc.getSupplierInfo(userAddress);
+    if (!info[2]) { toast("Wallet is not registered", "warn"); return; }
+    if (info[3]) { toast("Supplier is active — no penalty applies", "warn"); return; }
+    const penalty = await rc.calculatePenalty(userAddress);
+    log("💰 Calculated Penalty: " + penalty.toString() + " wei");
+    toast("Penalty: " + penalty.toString() + " wei", "info");
   } catch (err) {
     log("❌ Penalty calculation failed: " + (err.reason || err.message));
+    toast("Penalty calculation failed", "error");
   }
 });
 
 // ═══════════════════════════════════════════════════════════
-// PAY PENALTY & REACTIVATE
+// PAY PENALTY
 // ═══════════════════════════════════════════════════════════
 document.getElementById("pay-penalty").addEventListener("click", async () => {
   try {
-    const readContract = getReadContract();
-    const info = await readContract.getSupplierInfo(userAddress);
-    if (!info[2]) {
-      log("❌ Wallet is not registered as a supplier.");
-      return;
-    }
-
-    if (info[3]) {
-      log("ℹ️ Supplier is already ACTIVE. No penalty payment required.");
-      return;
-    }
-
-    const penalty = await readContract.calculatePenalty(userAddress);
-    log(`Submitting penalty payment of ${penalty.toString()} wei into escrow...`);
-
+    const rc = getReadContract();
+    const info = await rc.getSupplierInfo(userAddress);
+    if (!info[2]) { toast("Wallet is not registered", "warn"); return; }
+    if (info[3]) { toast("Supplier is already active", "warn"); return; }
+    const penalty = await rc.calculatePenalty(userAddress);
+    log("Submitting penalty payment of " + penalty.toString() + " wei into escrow...");
+    toast("Submitting penalty…", "info");
     const tx = await contract.payPenaltyAndReactivate({
       value: penalty.toString(),
       gasLimit: 300000
     });
-
     log("Payment tx sent: " + tx.hash);
     await tx.wait();
-    log("🎉 Penalty paid! Funds held in escrow. Reactivated. Compliance timers reset.");
-    log("ℹ️  Stay compliant for 30 days to get the full refund.");
+    log("🎉 Penalty paid! Funds held in escrow.");
+    toast("Penalty paid — supplier reactivated", "success");
+    await refreshOverview();
   } catch (err) {
-    log("❌ Penalty payment failed: " + (err.reason || err.message));
+    const msg = err.reason || err.message;
+    log("❌ Penalty payment failed: " + msg);
+    toast("Penalty payment failed: " + msg, "error");
   }
 });
 
 // ═══════════════════════════════════════════════════════════
-// LOAD ESCROW STATUS
+// ESCROW
 // ═══════════════════════════════════════════════════════════
 document.getElementById("load-escrow").addEventListener("click", async () => {
   try {
-    const readContract = getReadContract();
-    const info = await readContract.getEscrowInfo(userAddress);
-
+    const rc = getReadContract();
+    const info = await rc.getEscrowInfo(userAddress);
     const balance = info[0];
     const releaseTime = info[1];
     const releasable = info[2];
@@ -335,43 +464,36 @@ document.getElementById("load-escrow").addEventListener("click", async () => {
 
     if (balance.toString() === "0") {
       document.getElementById("escrow-status").innerHTML =
-        `<p>No penalty currently held in escrow for this wallet.</p>`;
+        '<p class="muted">No penalty currently held in escrow for this wallet.</p>';
       return;
     }
-
     const releaseDate = new Date(Number(releaseTime) * 1000);
     const nowSec = Math.floor(Date.now() / 1000);
     const daysLeft = Math.max(0, Math.ceil((Number(releaseTime) - nowSec) / 86400));
-
     let statusText;
-    if (releasable) {
-      statusText = "✅ Ready to release — 30-day window complete and supplier active";
-    } else if (forfeitEligible) {
-      statusText = "❌ Eligible for forfeit — supplier inactive within window";
-    } else {
-      statusText = "⏳ Awaiting compliance window";
-    }
+    if (releasable) statusText = "✅ Ready to release";
+    else if (forfeitEligible) statusText = "❌ Eligible for forfeit";
+    else statusText = "⏳ Awaiting compliance window";
 
-    document.getElementById("escrow-status").innerHTML = `
-      <p><strong>Amount in escrow:</strong> ${balance.toString()} wei</p>
-      <p><strong>Release date:</strong> ${releaseDate.toLocaleString()}</p>
-      <p><strong>Days remaining:</strong> ${daysLeft}</p>
-      <p><strong>Status:</strong> ${statusText}</p>
-    `;
+    document.getElementById("escrow-status").innerHTML =
+      "<p><strong>Amount in escrow:</strong> <code>" + balance.toString() + " wei</code></p>" +
+      "<p><strong>Release date:</strong> " + releaseDate.toLocaleString() + "</p>" +
+      "<p><strong>Days remaining:</strong> " + daysLeft + "</p>" +
+      "<p><strong>Status:</strong> " + statusText + "</p>";
   } catch (err) {
     log("❌ Failed to load escrow: " + (err.reason || err.message));
+    toast("Escrow load failed", "error");
   }
 });
 
 // ═══════════════════════════════════════════════════════════
-// LOAD REPUTATION
+// REPUTATION
 // ═══════════════════════════════════════════════════════════
 document.getElementById("load-reputation").addEventListener("click", async () => {
   try {
-    const readContract = getReadContract();
-    const score = await readContract.getSupplierReputation(userAddress);
-    const tier = await readContract.getReputationTier(userAddress);
-
+    const rc = getReadContract();
+    const score = await rc.getSupplierReputation(userAddress);
+    const tier = await rc.getReputationTier(userAddress);
     const n = Number(score);
     let barColor;
     if (n >= 180) barColor = "#8b5cf6";
@@ -379,18 +501,20 @@ document.getElementById("load-reputation").addEventListener("click", async () =>
     else if (n >= 120) barColor = "#9ca3af";
     else if (n >= 80)  barColor = "#b45309";
     else               barColor = "#dc2626";
-
     const percentage = Math.min(100, (n / 200) * 100);
 
-    document.getElementById("reputation-status").innerHTML = `
-      <p><strong>Score:</strong> ${score.toString()} / 200</p>
-      <p><strong>Tier:</strong> ${tier}</p>
-      <div style="background:#e5e7eb; border-radius:6px; height:14px; margin-top:8px; overflow:hidden;">
-        <div style="background:${barColor}; width:${percentage}%; height:100%;"></div>
-      </div>
-    `;
+    document.getElementById("reputation-status").innerHTML =
+      '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
+      '<span style="font-size:24px; font-weight:700; font-family:monospace;">' + score.toString() + '</span>' +
+      '<span style="font-size:12px; color:#6b7280;">/ 200</span>' +
+      '</div>' +
+      '<p style="margin:6px 0;"><strong>Tier:</strong> ' + tier + '</p>' +
+      '<div style="background:#e5e7eb; border-radius:6px; height:14px; margin-top:8px; overflow:hidden;">' +
+      '<div style="background:' + barColor + '; width:' + percentage + '%; height:100%; transition:width .4s;"></div>' +
+      '</div>';
   } catch (err) {
     log("❌ Failed to load reputation: " + (err.reason || err.message));
+    toast("Reputation load failed", "error");
   }
 });
 
@@ -399,11 +523,11 @@ document.getElementById("load-reputation").addEventListener("click", async () =>
 // ═══════════════════════════════════════════════════════════
 document.getElementById("check-pause-status").addEventListener("click", async () => {
   try {
-    const readContract = getReadContract();
-    const isPaused = await readContract.paused();
+    const rc = getReadContract();
+    const isPaused = await rc.paused();
     document.getElementById("pause-status").innerHTML = isPaused
-      ? `<p style="color:#dc2626;"><strong>⚠️ CONTRACT PAUSED</strong> — all state-changing operations are halted.</p>`
-      : `<p style="color:#16a34a;"><strong>✅ Contract active</strong> — operations running normally.</p>`;
+      ? '<p style="color:#dc2626;"><strong>⚠️ CONTRACT PAUSED</strong> — state changes halted.</p>'
+      : '<p style="color:#16a34a;"><strong>✅ Contract active</strong> — operations running normally.</p>';
   } catch (err) {
     log("❌ Failed to check pause status: " + (err.reason || err.message));
   }
@@ -411,35 +535,43 @@ document.getElementById("check-pause-status").addEventListener("click", async ()
 
 document.getElementById("pause-contract").addEventListener("click", async () => {
   try {
-    const readContract = getReadContract();
-    const ownerAddress = await readContract.owner();
+    const rc = getReadContract();
+    const ownerAddress = await rc.owner();
     if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
-      log("❌ Only the compliance officer (" + ownerAddress.slice(0, 8) + "...) can pause the contract.");
+      toast("Only the compliance officer can pause", "error");
       return;
     }
     const tx = await contract.pause();
     log("Pause tx sent: " + tx.hash);
+    toast("Pausing…", "info");
     await tx.wait();
-    log("⏸️ Contract PAUSED. All state-changing operations halted.");
+    log("⏸️ Contract PAUSED.");
+    toast("Contract paused", "warn");
   } catch (err) {
-    log("❌ Pause failed: " + (err.reason || err.message));
+    const msg = err.reason || err.message;
+    log("❌ Pause failed: " + msg);
+    toast("Pause failed: " + msg, "error");
   }
 });
 
 document.getElementById("unpause-contract").addEventListener("click", async () => {
   try {
-    const readContract = getReadContract();
-    const ownerAddress = await readContract.owner();
+    const rc = getReadContract();
+    const ownerAddress = await rc.owner();
     if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
-      log("❌ Only the compliance officer (" + ownerAddress.slice(0, 8) + "...) can unpause the contract.");
+      toast("Only the compliance officer can unpause", "error");
       return;
     }
     const tx = await contract.unpause();
     log("Unpause tx sent: " + tx.hash);
+    toast("Unpausing…", "info");
     await tx.wait();
-    log("▶️ Contract UNPAUSED. Operations resumed.");
+    log("▶️ Contract UNPAUSED.");
+    toast("Contract resumed", "success");
   } catch (err) {
-    log("❌ Unpause failed: " + (err.reason || err.message));
+    const msg = err.reason || err.message;
+    log("❌ Unpause failed: " + msg);
+    toast("Unpause failed: " + msg, "error");
   }
 });
 
@@ -458,33 +590,35 @@ function appendEvent(line) {
   const el = document.getElementById("event-log");
   if (!el) return;
   const time = new Date().toLocaleTimeString();
-  el.innerHTML = `<div>[${time}] ${line}</div>` + el.innerHTML;
+  el.innerHTML = "<div>[" + time + "] " + line + "</div>" + el.innerHTML;
 }
 
 async function startListening() {
   if (listening) return;
   await loadContractAddress();
-  const readContract = getReadContract();
+  const rc = getReadContract();
 
   const handlers = [
-    ["SupplierRegistered", (supplier, ts) => appendEvent(`🆕 SupplierRegistered: ${shorten(supplier)}`)],
-    ["ResourceRegistered", (supplier, resource) => appendEvent(`📦 ResourceRegistered: ${resource} (${shorten(supplier)})`)],
-    ["ResourceUpdated", (supplier, resource, qty) => appendEvent(`🔄 ResourceUpdated: ${resource} = ${qty.toString()}`)],
-    ["SupplierDeactivated", (supplier, ts) => appendEvent(`🚨 SupplierDeactivated: ${shorten(supplier)}`)],
-    ["PenaltyPaid", (supplier, amount) => appendEvent(`💰 PenaltyPaid: ${amount.toString()} wei`)],
-    ["SupplierReactivated", (supplier, ts) => appendEvent(`✅ SupplierReactivated: ${shorten(supplier)}`)],
-    ["EscrowDeposited", (supplier, amount, release) => appendEvent(`🔒 EscrowDeposited: ${amount.toString()} wei`)],
-    ["EscrowReleased", (supplier, amount) => appendEvent(`💵 EscrowReleased: ${amount.toString()} wei`)],
-    ["EscrowForfeited", (supplier, amount, recipient) => appendEvent(`💸 EscrowForfeited: ${amount.toString()} wei to ${shorten(recipient)}`)],
-    ["ReputationChanged", (supplier, oldScore, newScore, reason) => appendEvent(`⭐ Reputation: ${oldScore} → ${newScore} (${reason})`)],
-    ["ContractPaused", (by, ts) => appendEvent(`⏸️ ContractPaused by ${shorten(by)}`)],
-    ["ContractUnpaused", (by, ts) => appendEvent(`▶️ ContractUnpaused by ${shorten(by)}`)],
+    ["SupplierRegistered", function (s) { appendEvent("🆕 SupplierRegistered: " + shorten(s)); }],
+    ["ResourceRegistered", function (s, r) { appendEvent("📦 ResourceRegistered: " + r + " (" + shorten(s) + ")"); }],
+    ["ResourceUpdated", function (s, r, q) { appendEvent("🔄 ResourceUpdated: " + r + " = " + q.toString()); }],
+    ["SupplierDeactivated", function (s) { appendEvent("🚨 SupplierDeactivated: " + shorten(s)); }],
+    ["PenaltyPaid", function (s, a) { appendEvent("💰 PenaltyPaid: " + a.toString() + " wei"); }],
+    ["SupplierReactivated", function (s) { appendEvent("✅ SupplierReactivated: " + shorten(s)); }],
+    ["EscrowDeposited", function (s, a) { appendEvent("🔒 EscrowDeposited: " + a.toString() + " wei"); }],
+    ["EscrowReleased", function (s, a) { appendEvent("💵 EscrowReleased: " + a.toString() + " wei"); }],
+    ["EscrowForfeited", function (s, a, r) { appendEvent("💸 EscrowForfeited: " + a.toString() + " wei to " + shorten(r)); }],
+    ["ReputationChanged", function (s, o, n, reason) { appendEvent("⭐ Reputation: " + o + " → " + n + " (" + reason + ")"); }],
+    ["ContractPaused", function (by) { appendEvent("⏸️ ContractPaused by " + shorten(by)); }],
+    ["ContractUnpaused", function (by) { appendEvent("▶️ ContractUnpaused by " + shorten(by)); }]
   ];
 
-  for (const [name, handler] of handlers) {
-    const wrapped = (...args) => handler(...args);
-    readContract.on(name, wrapped);
-    eventListeners.push({ name, wrapped });
+  for (let i = 0; i < handlers.length; i++) {
+    const name = handlers[i][0];
+    const handler = handlers[i][1];
+    const wrapped = function () { handler.apply(null, arguments); };
+    rc.on(name, wrapped);
+    eventListeners.push({ name: name, wrapped: wrapped });
   }
 
   listening = true;
@@ -494,9 +628,9 @@ async function startListening() {
 
 function stopListening() {
   if (!listening) return;
-  const readContract = getReadContract();
-  for (const { name, wrapped } of eventListeners) {
-    readContract.off(name, wrapped);
+  const rc = getReadContract();
+  for (let i = 0; i < eventListeners.length; i++) {
+    rc.off(eventListeners[i].name, eventListeners[i].wrapped);
   }
   eventListeners = [];
   listening = false;
@@ -509,8 +643,9 @@ document.getElementById("toggle-events").addEventListener("click", async () => {
   else await startListening();
 });
 
-document.getElementById("clear-events").addEventListener("click", () => {
-  document.getElementById("event-log").innerHTML = `<p style="color:#94a3b8; margin:0;">Cleared.</p>`;
+document.getElementById("clear-events").addEventListener("click", function () {
+  document.getElementById("event-log").innerHTML =
+    '<p style="color:#94a3b8; margin:0;">Cleared.</p>';
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -518,42 +653,40 @@ document.getElementById("clear-events").addEventListener("click", () => {
 // ═══════════════════════════════════════════════════════════
 document.getElementById("load-stats").addEventListener("click", async () => {
   try {
-    const readContract = getReadContract();
-    const total = await readContract.getTotalRegisteredSuppliers();
-    const active = await readContract.getActiveSuppliersCount();
-    const inactive = await readContract.getInactiveSuppliersCount();
-    const verified = await readContract.getVerifiedSuppliersCount();
-    const penalties = await readContract.getTotalPenaltiesCollected();
-    const escrowHeld = await readContract.getTotalEscrowHeld();
-    const water = await readContract.getAggregateResourceQuantity(0);
-    const clothing = await readContract.getAggregateResourceQuantity(1);
-    const medicine = await readContract.getAggregateResourceQuantity(2);
-    const food = await readContract.getAggregateResourceQuantity(3);
+    const rc = getReadContract();
+    const total = await rc.getTotalRegisteredSuppliers();
+    const active = await rc.getActiveSuppliersCount();
+    const inactive = await rc.getInactiveSuppliersCount();
+    const verified = await rc.getVerifiedSuppliersCount();
+    const penalties = await rc.getTotalPenaltiesCollected();
+    const escrowHeld = await rc.getTotalEscrowHeld();
+    const water = await rc.getAggregateResourceQuantity(0);
+    const clothing = await rc.getAggregateResourceQuantity(1);
+    const medicine = await rc.getAggregateResourceQuantity(2);
+    const food = await rc.getAggregateResourceQuantity(3);
 
-    // Reputation only exists for wallets that registered as suppliers.
     let reputationLine = "";
     try {
-      const myReputation = await readContract.getSupplierReputation(userAddress);
-      const myTier = await readContract.getReputationTier(userAddress);
-      reputationLine = `<p>Your Reputation: ${myReputation} (${myTier})</p>`;
+      const myReputation = await rc.getSupplierReputation(userAddress);
+      const myTier = await rc.getReputationTier(userAddress);
+      reputationLine = "<p>Your Reputation: " + myReputation + " (" + myTier + ")</p>";
     } catch (e) {
-      reputationLine = `<p>Your Reputation: Not registered</p>`;
+      reputationLine = "<p>Your Reputation: Not registered</p>";
     }
 
-    document.getElementById("stats-output").innerHTML = `
-      <p>Total Suppliers: ${total}</p>
-      <p>Active Suppliers: ${active}</p>
-      <p>Inactive Suppliers: ${inactive}</p>
-      <p>Verified Suppliers: ${verified}</p>
-      <p>Total Penalties Forfeited: ${penalties} wei</p>
-      <p>Total Escrow Held: ${escrowHeld} wei</p>
-      ${reputationLine}
-      <h3>Aggregate Quantities</h3>
-      <p>Water: ${water}</p>
-      <p>Clothing: ${clothing}</p>
-      <p>Medicine: ${medicine}</p>
-      <p>Food: ${food}</p>
-    `;
+    document.getElementById("stats-output").innerHTML =
+      "<p>Total Suppliers: " + total + "</p>" +
+      "<p>Active Suppliers: " + active + "</p>" +
+      "<p>Inactive Suppliers: " + inactive + "</p>" +
+      "<p>Verified Suppliers: " + verified + "</p>" +
+      "<p>Total Penalties Forfeited: " + penalties + " wei</p>" +
+      "<p>Total Escrow Held: " + escrowHeld + " wei</p>" +
+      reputationLine +
+      "<h3>Aggregate Quantities</h3>" +
+      "<p>Water: " + water + "</p>" +
+      "<p>Clothing: " + clothing + "</p>" +
+      "<p>Medicine: " + medicine + "</p>" +
+      "<p>Food: " + food + "</p>";
   } catch (err) {
     log("❌ Failed to load stats: " + (err.reason || err.message));
   }

@@ -3,102 +3,334 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Supplier Compliance DApp</title>
+  <title>Supplier Compliance System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header>
-    <h1>Blockchain Supplier Compliance System</h1>
-    <div id="wallet-info">
-      <button id="connect-wallet">Connect MetaMask</button>
-      <span id="account">Not connected</span>
-    </div>
-  </header>
+  <div class="app-shell">
 
-  <main>
-    <section id="supplier-section">
-      <h2>Supplier Registration</h2>
-      <button id="register-supplier">Register (100,000 wei)</button>
-      <div id="supplier-status"></div>
-    </section>
-
-    <section id="resource-section">
-      <h2>Resource Management</h2>
-      <select id="resource-type">
-        <option value="0">Water</option>
-        <option value="1">Clothing</option>
-        <option value="2">Medicine</option>
-        <option value="3">Food</option>
-      </select>
-      <input type="number" id="resource-quantity" placeholder="Quantity" />
-      <button id="register-resource">Register Resource</button>
-      <button id="update-quantity">Update Quantity</button>
-      <div id="resource-status"></div>
-    </section>
-
-    <section id="countdown-section">
-      <h2>Compliance Countdown</h2>
-      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Time remaining before each registered resource becomes non-compliant.</p>
-      <button id="load-countdown">Load Countdown</button>
-      <div id="countdown-output"></div>
-    </section>
-
-    <section id="simulation-section">
-      <h2>Time Simulation (Hardhat Test Tool)</h2>
-      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Fast-forward blockchain time to test the 1-day compliance rule without waiting 24 hours.</p>
-      <button id="skip-1-day">Fast-Forward 25 Hours</button>
-      <button id="skip-3-days">Fast-Forward 3 Days</button>
-      <button id="skip-10-days">Fast-Forward 10 Days</button>
-      <div id="time-status" style="margin-top:8px; font-size:0.85rem; color:#1e3a8a;"></div>
-    </section>
-
-    <section id="compliance-section">
-      <h2>Compliance &amp; Penalty</h2>
-      <button id="check-compliance">Check Compliance &amp; Deactivate</button>
-      <button id="calculate-penalty">Calculate Penalty</button>
-      <button id="pay-penalty">Pay Penalty &amp; Reactivate</button>
-      <div id="compliance-status"></div>
-    </section>
-
-    <section id="escrow-section">
-      <h2>Penalty Escrow</h2>
-      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Penalty payments are held in escrow. Stay compliant for 30 days to get a full refund. Fail again within the window, and the funds go to the aid pool.</p>
-      <button id="load-escrow">Load Escrow Status</button>
-      <div id="escrow-status"></div>
-    </section>
-
-    <section id="reputation-section">
-      <h2>Reputation</h2>
-      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Score starts at 100. Each resource update adds 1 (max 200). Deactivation subtracts 20 — or only 10 if the penalty is paid within 1 hour. Tiers: Platinum (180+), Gold (150+), Silver (120+), Bronze (80+), Probation (below 80).</p>
-      <button id="load-reputation">Load Reputation</button>
-      <div id="reputation-status"></div>
-    </section>
-
-    <section id="admin-section">
-      <h2>Admin — Emergency Pause</h2>
-      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Only the compliance officer can pause or unpause the contract. When paused, no supplier can register, register resources, or update quantities. Read-only views still work.</p>
-      <button id="check-pause-status">Check Pause Status</button>
-      <button id="pause-contract">Pause Contract</button>
-      <button id="unpause-contract">Unpause Contract</button>
-      <div id="pause-status"></div>
-    </section>
-
-    <section id="statistics-section">
-      <h2>Statistics</h2>
-      <button id="load-stats">Load Statistics</button>
-      <div id="stats-output"></div>
-    </section>
-
-    <section id="events-section">
-      <h2>Live Event Log</h2>
-      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Real-time feed of contract events. New events appear as transactions are mined.</p>
-      <button id="toggle-events">Start Listening</button>
-      <button id="clear-events">Clear</button>
-      <div id="event-log" style="margin-top:12px; max-height:280px; overflow-y:auto; background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-family:'Courier New',monospace; font-size:12.5px; line-height:1.7;">
-        <p style="color:#94a3b8; margin:0;">Listening paused.</p>
+    <!-- ══════════════ SIDEBAR ══════════════ -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-mark">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L3 7V17L12 22L21 17V7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M12 8L7 11V17L12 20L17 17V11L12 8Z" fill="currentColor" opacity="0.3"/>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <span class="logo-title">Supplier Compliance</span>
+          <span class="logo-subtitle">Blockchain System</span>
+        </div>
       </div>
-    </section>
-  </main>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-section="overview">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M3 12L12 3L21 12M5 10V20H19V10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Overview</span>
+        </button>
+        <button class="nav-item" data-section="supplier">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 21C4 17 7.5 14 12 14C16.5 14 20 17 20 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span>Registration</span>
+        </button>
+        <button class="nav-item" data-section="resources">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span>Resources</span>
+        </button>
+        <button class="nav-item" data-section="compliance">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M9 12L11 14L15 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg>
+          <span>Compliance</span>
+        </button>
+        <button class="nav-item" data-section="escrow">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M3 10H21" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="15" r="1" fill="currentColor"/></svg>
+          <span>Escrow</span>
+        </button>
+        <button class="nav-item" data-section="reputation">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L15 9L22 9.5L17 14L18.5 21L12 17.5L5.5 21L7 14L2 9.5L9 9L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          <span>Reputation</span>
+        </button>
+        <button class="nav-item" data-section="admin">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6V12C4 17 7.5 21 12 22C16.5 21 20 17 20 12V6L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          <span>Admin</span>
+        </button>
+        <button class="nav-item" data-section="events">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 6H20M4 12H14M4 18H10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="18" cy="12" r="2" fill="currentColor"/><circle cx="14" cy="18" r="2" fill="currentColor"/></svg>
+          <span>Event Log</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="network-chip">
+          <span class="pulse-dot"></span>
+          <div>
+            <div class="chip-label">Network</div>
+            <div class="chip-value" id="network-name">Sepolia</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ══════════════ MAIN AREA ══════════════ -->
+    <main class="main-area">
+
+      <!-- TOP BAR -->
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1 id="page-title">Overview</h1>
+          <p id="page-subtitle">Manage suppliers, resources, and compliance on-chain.</p>
+        </div>
+        <div class="topbar-actions">
+          <div class="stat-pill">
+            <span class="stat-label">Gas</span>
+            <span class="stat-value" id="gas-display">~0.0001 ETH</span>
+          </div>
+          <button id="connect-wallet" class="btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2"/><path d="M8 12H16M12 8V16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span id="connect-label">Connect MetaMask</span>
+          </button>
+          <div class="account-chip hidden" id="account-chip">
+            <span class="account-dot"></span>
+            <span id="account">Not connected</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- OVERVIEW SECTION -->
+      <section class="section active" id="section-overview">
+        <div class="overview-grid">
+          <div class="stat-card">
+            <div class="stat-card-icon blue">👥</div>
+            <div class="stat-card-body">
+              <div class="stat-card-label">Total Suppliers</div>
+              <div class="stat-card-value" id="ov-total">0</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon green">✓</div>
+            <div class="stat-card-body">
+              <div class="stat-card-label">Active</div>
+              <div class="stat-card-value" id="ov-active">0</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon red">⚠</div>
+            <div class="stat-card-body">
+              <div class="stat-card-label">Inactive</div>
+              <div class="stat-card-value" id="ov-inactive">0</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon purple">◆</div>
+            <div class="stat-card-body">
+              <div class="stat-card-label">Escrow Held</div>
+              <div class="stat-card-value" id="ov-escrow">0 wei</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Your Status</h2>
+            <button id="refresh-overview" class="btn-ghost">Refresh</button>
+          </div>
+          <div id="overview-status" class="overview-status">
+            <p class="muted">Connect your wallet to see your status.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Aggregate Resources</h2>
+          </div>
+          <div class="resource-grid">
+            <div class="resource-tile">
+              <div class="resource-icon water">💧</div>
+              <div class="resource-label">Water</div>
+              <div class="resource-value" id="ov-water">0</div>
+            </div>
+            <div class="resource-tile">
+              <div class="resource-icon clothing">👕</div>
+              <div class="resource-label">Clothing</div>
+              <div class="resource-value" id="ov-clothing">0</div>
+            </div>
+            <div class="resource-tile">
+              <div class="resource-icon medicine">💊</div>
+              <div class="resource-label">Medicine</div>
+              <div class="resource-value" id="ov-medicine">0</div>
+            </div>
+            <div class="resource-tile">
+              <div class="resource-icon food">🍚</div>
+              <div class="resource-label">Food</div>
+              <div class="resource-value" id="ov-food">0</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SUPPLIER SECTION -->
+      <section class="section" id="section-supplier">
+        <div class="card">
+          <div class="card-header">
+            <h2>Supplier Registration</h2>
+            <span class="badge">One-time fee: 100,000 wei</span>
+          </div>
+          <p class="card-desc">Register your wallet as a supplier to join the network. You must pay the exact registration fee.</p>
+          <button id="register-supplier" class="btn-primary large">Register as Supplier</button>
+          <div id="supplier-status" class="status-area"></div>
+        </div>
+      </section>
+
+      <!-- RESOURCES SECTION -->
+      <section class="section" id="section-resources">
+        <div class="card">
+          <div class="card-header">
+            <h2>Resource Management</h2>
+          </div>
+          <p class="card-desc">Register a predefined resource and keep its quantity updated. You must update every resource within 24 hours to stay compliant.</p>
+
+          <div class="form-row">
+            <label>Resource Type</label>
+            <select id="resource-type">
+              <option value="0">💧 Water</option>
+              <option value="1">👕 Clothing</option>
+              <option value="2">💊 Medicine</option>
+              <option value="3">🍚 Food</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Quantity</label>
+            <input type="number" id="resource-quantity" placeholder="e.g. 1000" />
+          </div>
+          <div class="button-row">
+            <button id="register-resource" class="btn-primary">Register Resource</button>
+            <button id="update-quantity" class="btn-secondary">Update Quantity</button>
+          </div>
+          <div id="resource-status" class="status-area"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Compliance Countdown</h2>
+          </div>
+          <p class="card-desc">Time remaining before each registered resource becomes non-compliant.</p>
+          <button id="load-countdown" class="btn-secondary">Load Countdown</button>
+          <div id="countdown-output" class="status-area"></div>
+        </div>
+      </section>
+
+      <!-- COMPLIANCE SECTION -->
+      <section class="section" id="section-compliance">
+        <div class="card">
+          <div class="card-header">
+            <h2>Compliance & Penalty</h2>
+          </div>
+          <p class="card-desc">Check compliance, calculate duration-based penalties, or pay a penalty to reactivate a deactivated supplier.</p>
+          <div class="button-row wrap">
+            <button id="check-compliance" class="btn-primary">Check Compliance & Deactivate</button>
+            <button id="calculate-penalty" class="btn-secondary">Calculate Penalty</button>
+            <button id="pay-penalty" class="btn-secondary">Pay Penalty & Reactivate</button>
+          </div>
+          <div id="compliance-status" class="status-area"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Time Simulation</h2>
+            <span class="badge badge-warn">Hardhat only</span>
+          </div>
+          <p class="card-desc">Fast-forward blockchain time to test the 1-day compliance rule without waiting 24 hours.</p>
+          <div class="button-row wrap">
+            <button id="skip-1-day" class="btn-ghost">Fast-Forward 25 Hours</button>
+            <button id="skip-3-days" class="btn-ghost">Fast-Forward 3 Days</button>
+            <button id="skip-10-days" class="btn-ghost">Fast-Forward 10 Days</button>
+          </div>
+          <div id="time-status" class="status-area"></div>
+        </div>
+      </section>
+
+      <!-- ESCROW SECTION -->
+      <section class="section" id="section-escrow">
+        <div class="card">
+          <div class="card-header">
+            <h2>Penalty Escrow</h2>
+          </div>
+          <p class="card-desc">Penalty payments are held in escrow. Stay compliant for 30 days to get a full refund. Fail again within the window, and the funds go to the aid pool.</p>
+          <button id="load-escrow" class="btn-primary">Load Escrow Status</button>
+          <div id="escrow-status" class="status-area"></div>
+        </div>
+      </section>
+
+      <!-- REPUTATION SECTION -->
+      <section class="section" id="section-reputation">
+        <div class="card">
+          <div class="card-header">
+            <h2>Reputation</h2>
+          </div>
+          <p class="card-desc">Score starts at 100 (max 200). Each resource update adds 1. Deactivation subtracts 20 — or only 10 if the penalty is paid within 1 hour.</p>
+
+          <div class="tier-legend">
+            <span class="tier platinum">Platinum 180+</span>
+            <span class="tier gold">Gold 150+</span>
+            <span class="tier silver">Silver 120+</span>
+            <span class="tier bronze">Bronze 80+</span>
+            <span class="tier probation">Probation &lt;80</span>
+          </div>
+
+          <button id="load-reputation" class="btn-primary">Load Reputation</button>
+          <div id="reputation-status" class="status-area"></div>
+        </div>
+      </section>
+
+      <!-- ADMIN SECTION -->
+      <section class="section" id="section-admin">
+        <div class="card">
+          <div class="card-header">
+            <h2>Emergency Pause</h2>
+            <span class="badge badge-warn">Compliance Officer only</span>
+          </div>
+          <p class="card-desc">Pause all state-changing operations in an emergency. View functions continue to work.</p>
+          <div class="button-row wrap">
+            <button id="check-pause-status" class="btn-secondary">Check Pause Status</button>
+            <button id="pause-contract" class="btn-danger">Pause Contract</button>
+            <button id="unpause-contract" class="btn-primary">Unpause Contract</button>
+          </div>
+          <div id="pause-status" class="status-area"></div>
+        </div>
+      </section>
+
+      <!-- EVENTS SECTION -->
+      <section class="section" id="section-events">
+        <div class="card">
+          <div class="card-header">
+            <h2>Live Event Log</h2>
+            <div class="button-row">
+              <button id="toggle-events" class="btn-ghost small">Start Listening</button>
+              <button id="clear-events" class="btn-ghost small">Clear</button>
+            </div>
+          </div>
+          <p class="card-desc">Real-time feed of contract events. New events appear as transactions are mined.</p>
+          <div id="event-log" class="event-log">
+            <p class="muted">Listening paused.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Raw Statistics</h2>
+          </div>
+          <button id="load-stats" class="btn-secondary">Load Statistics</button>
+          <div id="stats-output" class="status-area"></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toast-container" class="toast-container"></div>
 
   <script src="ethers.min.js"></script>
   <script src="app.js"></script>
