@@ -1063,3 +1063,5 @@ body.app-active .cursor-spotlight { opacity: 1; }
   .ov-status-body { gap: 16px; flex-direction: column; }
   .ov-marquee-name { font-size: 34px; }
 }
+.ov-stage { background: linear-gradient(160deg, #F2E2E0 0%, #E9D5D5 55%, #EFD9D6 100%) !important; }
+#overview-canvas { background: transparent !important; }
