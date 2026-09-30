@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   APP.JS — Supplier Compliance (Blush/Editorial revamp)
+   APP.JS — Supplier Compliance (Blush/Editorial revamp v2)
    ═══════════════════════════════════════════════════════════ */
 
 let CONTRACT_ADDRESS = null;
@@ -61,7 +61,7 @@ const CONTRACT_ABI = [
 let provider, signer, contract, userAddress;
 
 /* ═══════════════════════════════════════════════════════════
-   TOASTS (bottom-center)
+   TOASTS
    ═══════════════════════════════════════════════════════════ */
 function toast(message, type) {
   type = type || "info";
@@ -120,10 +120,8 @@ function showLanding() {
 document.getElementById("enter-app").addEventListener("click", function () {
   showApp("overview");
 });
-
 document.getElementById("back-to-landing").addEventListener("click", showLanding);
 
-// Capsule nav links — jump directly to a section
 document.querySelectorAll("[data-jump]").forEach(function (link) {
   link.addEventListener("click", function (e) {
     e.preventDefault();
@@ -158,11 +156,62 @@ function switchSection(name) {
   if (tEl) tEl.textContent = info[0];
   if (sEl) sEl.textContent = info[1];
   window.scrollTo({ top: 0, behavior: "smooth" });
+
+  // Re-run count-up on overview section
+  if (name === "overview") setTimeout(animateStatNumbers, 200);
 }
 
 document.querySelectorAll(".rail-item").forEach(function (btn) {
   btn.addEventListener("click", function () { switchSection(btn.dataset.section); });
 });
+
+/* ═══════════════════════════════════════════════════════════
+   STAT NUMBER COUNT-UP
+   ═══════════════════════════════════════════════════════════ */
+function animateValue(el, endValue, duration) {
+  if (!el) return;
+  const start = 0;
+  const startTime = performance.now();
+  function tick(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    // easeOutCubic
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = Math.round(start + (endValue - start) * eased);
+    el.textContent = current.toString();
+    if (progress < 1) requestAnimationFrame(tick);
+    else el.textContent = endValue.toString();
+  }
+  requestAnimationFrame(tick);
+}
+
+function animateStatNumbers() {
+  const ids = ["ov-total", "ov-active", "ov-inactive", "ov-escrow"];
+  ids.forEach(function (id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const target = parseInt(el.textContent.replace(/[^0-9]/g, ""), 10);
+    if (isNaN(target) || target === 0) return;
+    animateValue(el, target, 900);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAGNETIC BUTTONS
+   ═══════════════════════════════════════════════════════════ */
+function initMagneticButtons() {
+  document.querySelectorAll(".pill.primary, .pill-enter").forEach(function (btn) {
+    btn.addEventListener("mousemove", function (e) {
+      const rect = btn.getBoundingClientRect();
+      const x = e.clientX - rect.left - rect.width / 2;
+      const y = e.clientY - rect.top - rect.height / 2;
+      btn.style.transform = "translate(" + (x * 0.12) + "px," + (y * 0.18) + "px)";
+    });
+    btn.addEventListener("mouseleave", function () {
+      btn.style.transform = "";
+    });
+  });
+}
 
 /* ═══════════════════════════════════════════════════════════
    OVERVIEW REFRESH
@@ -212,10 +261,12 @@ async function refreshOverview() {
   }
 }
 
-document.getElementById("refresh-overview").addEventListener("click", refreshOverview);
+document.getElementById("refresh-overview").addEventListener("click", function () {
+  refreshOverview().then(animateStatNumbers);
+});
 
 /* ═══════════════════════════════════════════════════════════
-   WALLET CONNECT — both the rail button and hero pill
+   WALLET CONNECT
    ═══════════════════════════════════════════════════════════ */
 async function connectWallet() {
   if (!window.ethereum) {
@@ -360,13 +411,13 @@ document.getElementById("load-countdown").addEventListener("click", async () => 
       else { color = "#3F6F4A"; status = "Compliant"; }
 
       html +=
-        '<div style="margin-bottom:14px; padding:16px 18px; background:rgba(250,244,241,.6); border-left:2px solid ' + color + ';">' +
-        '<div style="display:flex; align-items:baseline; gap:10px; margin-bottom:6px;">' +
-        '<strong style="font-family:\'Instrument Serif\', serif; font-size:20px; font-weight:400;">' + resourceNames[i] + '</strong>' +
+        '<div style="margin-bottom:14px; padding:18px 20px; background:rgba(250,244,241,.5); border-left:2px solid ' + color + ';">' +
+        '<div style="display:flex; align-items:baseline; gap:10px; margin-bottom:8px;">' +
+        '<strong style="font-family:\'Instrument Serif\', serif; font-size:22px; font-weight:400;">' + resourceNames[i] + '</strong>' +
         '<span style="color:#8B7B78; font-size:11px; font-family:\'JetBrains Mono\', monospace;">qty ' + qty.toString() + '</span>' +
         '</div>' +
         '<div style="color:' + color + '; font-weight:600; font-size:12px;">' + status + '</div>' +
-        '<div style="font-family:\'JetBrains Mono\', monospace; font-size:11.5px; color:#4A3F3E; margin-top:4px;">' + formatDuration(seconds) + ' remaining</div>' +
+        '<div style="font-family:\'JetBrains Mono\', monospace; font-size:11.5px; color:#4A3F3E; margin-top:6px;">' + formatDuration(seconds) + ' remaining</div>' +
         '</div>';
     }
 
@@ -526,18 +577,17 @@ document.getElementById("load-reputation").addEventListener("click", async () =>
     if (n >= 180) barColor = "#8B6F47";
     else if (n >= 150) barColor = "#A65A2E";
     else if (n >= 120) barColor = "#8B7B78";
-    else if (n >= 80) barColor = "#8C3A2E";
     else barColor = "#8C3A2E";
 
     const percentage = Math.min(100, (n / 200) * 100);
 
     document.getElementById("reputation-status").innerHTML =
-      '<div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px;">' +
-      '<span style="font-family:\'Instrument Serif\', serif; font-size:56px; line-height:.9;">' + score.toString() + '</span>' +
+      '<div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px;">' +
+      '<span style="font-family:\'Instrument Serif\', serif; font-size:72px; line-height:.9;">' + score.toString() + '</span>' +
       '<span style="font-family:\'JetBrains Mono\', monospace; font-size:11px; color:#8B7B78;">/ 200 · ' + tier.toUpperCase() + '</span>' +
       '</div>' +
-      '<div style="background:rgba(26,22,22,.08); height:2px; margin-top:10px; overflow:hidden;">' +
-      '<div style="background:' + barColor + '; width:' + percentage + '%; height:100%; transition:width .6s cubic-bezier(.4,0,.2,1);"></div>' +
+      '<div style="background:rgba(26,22,22,.08); height:2px; margin-top:12px; overflow:hidden;">' +
+      '<div style="background:' + barColor + '; width:' + percentage + '%; height:100%; transition:width .8s cubic-bezier(.4,0,.2,1);"></div>' +
       '</div>';
   } catch (err) {
     log("Failed to load reputation: " + (err.reason || err.message));
@@ -708,7 +758,7 @@ document.getElementById("load-stats").addEventListener("click", async () => {
       "<p>Total Penalties Forfeited: " + penalties + " wei</p>" +
       "<p>Total Escrow Held: " + escrowHeld + " wei</p>" +
       reputationLine +
-      "<p style='margin-top:14px;'><strong>Aggregate Quantities</strong></p>" +
+      "<p style='margin-top:16px;'><strong>Aggregate Quantities</strong></p>" +
       "<p>Water: " + water + "</p>" +
       "<p>Clothing: " + clothing + "</p>" +
       "<p>Medicine: " + medicine + "</p>" +
@@ -721,4 +771,5 @@ document.getElementById("load-stats").addEventListener("click", async () => {
 /* ═══════════════════════════════════════════════════════════
    INIT
    ═══════════════════════════════════════════════════════════ */
-document.body.style.overflow = "hidden"; // lock scroll while on landing
+document.body.style.overflow = "hidden";
+initMagneticButtons();
