@@ -214,7 +214,8 @@ describe("SupplierCompliance", function () {
       expect(await contract.getAggregateResourceQuantity(0)).to.equal(3000);
     });
   });
-    describe("Reputation", function () {
+
+  describe("Reputation", function () {
     it("Should start at 100 on registration", async function () {
       await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
       expect(await contract.getSupplierReputation(supplier1.address)).to.equal(100);
@@ -249,6 +250,57 @@ describe("SupplierCompliance", function () {
       }
 
       expect(await contract.getSupplierReputation(supplier1.address)).to.equal(200);
+    });
+  });
+
+  describe("Emergency Pause", function () {
+    it("Should revert state-changing operations when paused", async function () {
+      await contract.connect(owner).pause();
+      await expect(
+        contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE })
+      ).to.be.revertedWith("Contract is paused");
+    });
+
+    it("Should prevent resource updates when paused", async function () {
+      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
+      await contract.connect(supplier1).registerResource(0, 1000);
+      await contract.connect(owner).pause();
+      await expect(
+        contract.connect(supplier1).updateResourceQuantity(0, 2000)
+      ).to.be.revertedWith("Contract is paused");
+    });
+
+    it("Should allow view functions when paused", async function () {
+      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
+      await contract.connect(owner).pause();
+      expect(await contract.getTotalRegisteredSuppliers()).to.equal(1);
+    });
+
+    it("Should resume normal operation after unpause", async function () {
+      await contract.connect(owner).pause();
+      await contract.connect(owner).unpause();
+      await expect(
+        contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE })
+      ).to.not.be.reverted;
+    });
+
+    it("Should prevent non-owner from pausing", async function () {
+      await expect(
+        contract.connect(supplier1).pause()
+      ).to.be.revertedWith("Only compliance officer can call this");
+    });
+
+    it("Should prevent pausing when already paused", async function () {
+      await contract.connect(owner).pause();
+      await expect(
+        contract.connect(owner).pause()
+      ).to.be.revertedWith("Already paused");
+    });
+
+    it("Should prevent unpausing when not paused", async function () {
+      await expect(
+        contract.connect(owner).unpause()
+      ).to.be.revertedWith("Not paused");
     });
   });
 });
