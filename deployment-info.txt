@@ -1,24 +1,38 @@
 CONTRACT DEPLOYMENT INFORMATION
 ================================
 
-Contract Address   : 0x5FbDB2315678afecb367f032d93F642f64180aa3
-Network            : Hardhat Local
-Chain ID           : 31337
-RPC URL            : http://127.0.0.1:8545
+Contract Address   : 0x4eF4AA916EaabA0Cfc86A33be295005a1Bc40daa
+Network            : Sepolia Testnet
+Chain ID           : 11155111
+RPC URL            : https://sepolia.infura.io/v3/... (or Alchemy endpoint)
+Explorer           : https://sepolia.etherscan.io/address/0x4eF4AA916EaabA0Cfc86A33be295005a1Bc40daa
 Solidity Version   : 0.8.19
 Hardhat Version    : 2.29.1
-Deployer Wallet    : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-Compliance Officer : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-Frontend URL       : http://localhost:3333
-Deployment Date    : 27-09-2026
+Deployer Wallet    : 0xbDfeC5EbF57244e0504a3E73D8DcB498Bf2A6178
+Compliance Officer : 0xbDfeC5EbF57244e0504a3E73D8Dc498Bf2A6178
+Frontend URL       : https://blockchain-supplier-compliance-fron.vercel.app
+Repository         : https://github.com/Argho-das0/blockchain-supplier-compliance
+Deployment Date    : 29-09-2026
 
 CONTRACT OVERVIEW
 -----------------
 The SupplierCompliance contract manages humanitarian resource suppliers
-on an Ethereum-compatible blockchain. It enforces registration rules,
-resource declaration, one-day compliance, automatic deactivation,
-duration-based penalties, and reactivation.
+on the Sepolia testnet. It enforces registration rules, resource
+declaration, one-day compliance, automatic deactivation via a scheduled
+external trigger, duration-based penalties held in escrow, and supplier
+reactivation. Includes a reputation scoring system with tiered
+classification.
 
-NUMBER OF PUBLIC FUNCTIONS : 26
-NUMBER OF EVENTS           : 6
-NUMBER OF TESTS            : 25 (all passing)
+BUSINESS RULES
+--------------
+- Registration fee: 100,000 wei (exact)
+- Compliance period: 1 day (86,400 seconds)
+- Penalty tiers: 200k / 400k / 800k / 1M wei based on days inactive
+- Escrow period: 30 days of good behaviour for refund
+- Reputation starts at 100, capped at 200
+
+NUMBER OF PUBLIC FUNCTIONS : 30+
+NUMBER OF EVENTS           : 11
+NUMBER OF TESTS            : 30+ (all passing)
+AUTOMATION                 : cron-job.org triggers GitHub Actions every 5 minutes
+                             which calls checkAndDeactivate() on non-compliant suppliers

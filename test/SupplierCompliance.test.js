@@ -214,4 +214,41 @@ describe("SupplierCompliance", function () {
       expect(await contract.getAggregateResourceQuantity(0)).to.equal(3000);
     });
   });
+    describe("Reputation", function () {
+    it("Should start at 100 on registration", async function () {
+      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
+      expect(await contract.getSupplierReputation(supplier1.address)).to.equal(100);
+    });
+
+    it("Should increase by 1 on each resource update", async function () {
+      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
+      await contract.connect(supplier1).registerResource(0, 1000);
+      await contract.connect(supplier1).updateResourceQuantity(0, 1500);
+      expect(await contract.getSupplierReputation(supplier1.address)).to.equal(101);
+    });
+
+    it("Should drop by 20 on deactivation", async function () {
+      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
+      await contract.connect(supplier1).registerResource(0, 1000);
+      await time.increase(24 * 60 * 60 + 1);
+      await contract.connect(owner).checkAndDeactivate(supplier1.address);
+      expect(await contract.getSupplierReputation(supplier1.address)).to.equal(80);
+    });
+
+    it("Should return correct tier based on score", async function () {
+      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
+      expect(await contract.getReputationTier(supplier1.address)).to.equal("Bronze");
+    });
+
+    it("Should cap at 200", async function () {
+      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
+      await contract.connect(supplier1).registerResource(0, 1000);
+
+      for (let i = 0; i < 120; i++) {
+        await contract.connect(supplier1).updateResourceQuantity(0, 1000 + i);
+      }
+
+      expect(await contract.getSupplierReputation(supplier1.address)).to.equal(200);
+    });
+  });
 });
