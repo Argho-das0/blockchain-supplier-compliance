@@ -276,6 +276,8 @@ async function refreshOverview() {
     document.getElementById("ov-medicine").textContent = medicine.toString();
     document.getElementById("ov-food").textContent = food.toString();
 
+    buildOverviewMarquee();
+
     const el = document.getElementById("overview-status");
     if (!userAddress) {
       el.innerHTML = '<p class="muted">Connect your wallet to see your status.</p>';
@@ -301,6 +303,38 @@ async function refreshOverview() {
 document.getElementById("refresh-overview").addEventListener("click", function () {
   refreshOverview().then(animateStatNumbers);
 });
+
+/* ═══════════════════════════════════════════════════════════
+   OVERVIEW MARQUEE
+   ═══════════════════════════════════════════════════════════ */
+function buildOverviewMarquee() {
+  const el = document.getElementById("ov-marquee");
+  if (!el) return;
+
+  const resources = [
+    { name: "Water",    id: "ov-water" },
+    { name: "Clothing", id: "ov-clothing" },
+    { name: "Medicine", id: "ov-medicine" },
+    { name: "Food",     id: "ov-food" }
+  ];
+
+  function buildSet() {
+    let html = "";
+    resources.forEach(function (r) {
+      const val = document.getElementById(r.id);
+      const v = val ? val.textContent : "0";
+      html +=
+        '<span class="ov-marquee-item">' +
+          '<span class="ov-marquee-name">' + r.name + '</span>' +
+          '<span class="ov-marquee-value">' + v + ' units</span>' +
+        '</span>' +
+        '<span class="ov-marquee-sep">◆</span>';
+    });
+    return html;
+  }
+
+  el.innerHTML = buildSet() + buildSet();
+}
 
 /* ═══════════════════════════════════════════════════════════
    WALLET CONNECT
@@ -837,7 +871,7 @@ document.getElementById("load-stats").addEventListener("click", async () => {
 })();
 
 /* ═══════════════════════════════════════════════════════════
-   RAIL + BUTTON CURSOR TRACKING (radial glow)
+   RAIL + BUTTON CURSOR TRACKING
    ═══════════════════════════════════════════════════════════ */
 function trackCursor(element) {
   element.addEventListener("mousemove", function (e) {
@@ -852,7 +886,7 @@ function trackCursor(element) {
 document.querySelectorAll(".rail-item, .pill").forEach(trackCursor);
 
 /* ═══════════════════════════════════════════════════════════
-   AMBIENT APP CANVAS (faint background node graph)
+   AMBIENT APP CANVAS
    ═══════════════════════════════════════════════════════════ */
 (function initAppCanvas() {
   const appRoot = document.querySelector(".app");
@@ -970,7 +1004,7 @@ document.querySelectorAll(".rail-item, .pill").forEach(trackCursor);
 })();
 
 /* ═══════════════════════════════════════════════════════════
-   MUTATION OBSERVER — re-track dynamically added buttons
+   MUTATION OBSERVER
    ═══════════════════════════════════════════════════════════ */
 new MutationObserver(function () {
   document.querySelectorAll(".pill:not([data-tracked])").forEach(function (el) {
