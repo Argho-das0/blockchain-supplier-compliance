@@ -1,10 +1,38 @@
+# Dependencies
 node_modules/
+
+# Hardhat build output
 artifacts/
 cache/
+typechain-types/
+
+# Env & secrets
 .env
+.env.*
+!.env.example
+
+# Logs
 *.log
-Documents/
+npm-debug.log*
+
+# Deployment artifacts (regenerated locally)
+deployment.json
+frontend/deployed-address.json
+deployment-info.txt
+event-log.txt
+transaction-hashes.txt
+.chain-data/
+
+# Windows
 Thumbs.db
+Desktop.ini
+
+# Custom scratch folder
 Ignore/
+
+# Archives and backups
 *.zip
 *.backup
+
+# Screenshots (optional — remove this line if you want to commit evidence)
+# Screenshots/

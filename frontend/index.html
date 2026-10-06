@@ -11,95 +11,283 @@
     <h1>Blockchain Supplier Compliance System</h1>
     <div id="wallet-info">
       <button id="connect-wallet">Connect MetaMask</button>
-      <span id="account">Not connected</span>
+      <span id="account"></span>
+      <span id="role-badge" class="role-badge" style="display:none;"></span>
     </div>
   </header>
 
   <main>
-    <section id="supplier-section">
-      <h2>Supplier Registration</h2>
-      <button id="register-supplier">Register (100,000 wei)</button>
-      <div id="supplier-status"></div>
-    </section>
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- ADMIN DASHBOARD (tabbed)                                 -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div id="admin-dashboard" class="dashboard" style="display:none;">
 
-    <section id="resource-section">
-      <h2>Resource Management</h2>
-      <select id="resource-type">
-        <option value="0">Water</option>
-        <option value="1">Clothing</option>
-        <option value="2">Medicine</option>
-        <option value="3">Food</option>
-      </select>
-      <input type="number" id="resource-quantity" placeholder="Quantity" />
-      <button id="register-resource">Register Resource</button>
-      <button id="update-quantity">Update Quantity</button>
-      <div id="resource-status"></div>
-    </section>
+      <div class="tab-bar" role="tablist">
+        <button class="tab-btn active" data-tab="overview"  role="tab">Overview</button>
+        <button class="tab-btn"        data-tab="suppliers" role="tab">Suppliers</button>
+        <button class="tab-btn"        data-tab="analytics" role="tab">Analytics</button>
+      </div>
 
-    <section id="countdown-section">
-      <h2>Compliance Countdown</h2>
-      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Time remaining before each registered resource becomes non-compliant.</p>
-      <button id="load-countdown">Load Countdown</button>
-      <div id="countdown-output"></div>
-    </section>
+      <!-- TAB: OVERVIEW -->
+      <div class="tab-panel active" id="tab-overview">
 
-    <section id="simulation-section">
-      <h2>Time Simulation (Hardhat Test Tool)</h2>
-      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Fast-forward blockchain time to test the 1-day compliance rule without waiting 24 hours.</p>
-      <button id="skip-1-day">Fast-Forward 25 Hours</button>
-      <button id="skip-3-days">Fast-Forward 3 Days</button>
-      <button id="skip-10-days">Fast-Forward 10 Days</button>
-      <div id="time-status" style="margin-top:8px; font-size:0.85rem; color:#1e3a8a;"></div>
-    </section>
+        <section class="full-width" id="admin-summary">
+          <div class="section-head">
+            <h2>System Overview</h2>
+            <button id="admin-refresh" class="btn-sm">Refresh</button>
+          </div>
+          <div id="admin-summary-output" class="summary-strip"></div>
+        </section>
 
-    <section id="compliance-section">
-      <h2>Compliance &amp; Penalty</h2>
-      <button id="check-compliance">Check Compliance &amp; Deactivate</button>
-      <button id="calculate-penalty">Calculate Penalty</button>
-      <button id="pay-penalty">Pay Penalty &amp; Reactivate</button>
-      <div id="compliance-status"></div>
-    </section>
+        <div class="admin-grid">
+          <div class="admin-col-main">
+            <section id="admin-pending">
+              <div class="section-head">
+                <h2>Pending Approvals</h2>
+                <button id="admin-approve-all" class="btn-sm success">Approve All</button>
+              </div>
+              <div id="admin-pending-output"></div>
+            </section>
 
-    <section id="escrow-section">
-      <h2>Penalty Escrow</h2>
-      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Penalty payments are held in escrow. Stay compliant for 30 days to get a full refund. Fail again within the window, and the funds go to the aid pool.</p>
-      <button id="load-escrow">Load Escrow Status</button>
-      <div id="escrow-status"></div>
-    </section>
+            <section id="admin-controls">
+              <div class="section-head"><h2>Emergency &amp; Admin Controls</h2></div>
+              <div class="controls-row">
+                <button id="check-pause-status" class="btn-sm">Check Pause Status</button>
+                <button id="pause-contract" class="btn-sm danger">Pause Contract</button>
+                <button id="unpause-contract" class="btn-sm success">Unpause Contract</button>
+              </div>
+              <div id="pause-status" class="status"></div>
+              <hr class="divider" />
+              <div class="controls-row">
+                <input type="text" id="new-admin" placeholder="New admin wallet address" />
+                <button id="set-admin" class="btn-sm">Set Admin</button>
+              </div>
+              <div class="controls-row">
+                <input type="text" id="new-aid-fund" placeholder="New aid-fund wallet address" />
+                <button id="set-aid-fund" class="btn-sm">Set Aid Fund</button>
+              </div>
+            </section>
+          </div>
 
-    <section id="reputation-section">
-      <h2>Reputation</h2>
-      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Score starts at 100. Each resource update adds 1 (max 200). Deactivation subtracts 20 — or only 10 if the penalty is paid within 1 hour. Tiers: Platinum (180+), Gold (150+), Silver (120+), Bronze (80+), Probation (below 80).</p>
-      <button id="load-reputation">Load Reputation</button>
-      <div id="reputation-status"></div>
-    </section>
+          <div class="admin-col-side">
+            <section id="admin-funds">
+              <div class="section-head"><h2>Funds Collected</h2></div>
+              <div id="admin-funds-output"></div>
+            </section>
 
-    <section id="admin-section">
-      <h2>Admin — Emergency Pause</h2>
-      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Only the compliance officer can pause or unpause the contract. When paused, no supplier can register, register resources, or update quantities. Read-only views still work.</p>
-      <button id="check-pause-status">Check Pause Status</button>
-      <button id="pause-contract">Pause Contract</button>
-      <button id="unpause-contract">Unpause Contract</button>
-      <div id="pause-status"></div>
-    </section>
+            <section id="admin-top">
+              <div class="section-head"><h2>Top Performers</h2></div>
+              <div id="admin-top-output"></div>
+            </section>
 
+            <section id="admin-defaulters">
+              <div class="section-head"><h2>Frequent Defaulters</h2></div>
+              <div id="admin-defaulters-output"></div>
+            </section>
+
+            <section id="admin-types">
+              <div class="section-head"><h2>Type Breakdown</h2></div>
+              <div id="admin-types-output"></div>
+            </section>
+
+            <section id="admin-resources">
+              <div class="section-head"><h2>Aggregate Resources</h2></div>
+              <div id="admin-resources-output"></div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: SUPPLIERS -->
+      <div class="tab-panel" id="tab-suppliers">
+        <section class="full-width" id="admin-suppliers">
+          <div class="section-head"><h2>All Suppliers</h2></div>
+          <div class="filters">
+            <input type="text" id="admin-search" placeholder="Search by name..." />
+            <select id="admin-filter-type">
+              <option value="">All Types</option>
+              <option value="0">NGO</option>
+              <option value="1">Vendor</option>
+              <option value="2">Corporate</option>
+              <option value="3">Individual</option>
+              <option value="4">Government</option>
+              <option value="5">Healthcare</option>
+              <option value="6">Educational</option>
+              <option value="7">Religious</option>
+              <option value="8">Other</option>
+            </select>
+            <select id="admin-filter-state">
+              <option value="">All States</option>
+              <option value="0">Pending</option>
+              <option value="1">Active</option>
+              <option value="2">Inactive</option>
+              <option value="3">Rejected</option>
+            </select>
+          </div>
+          <div id="admin-suppliers-output"></div>
+        </section>
+      </div>
+
+      <!-- TAB: ANALYTICS -->
+      <div class="tab-panel" id="tab-analytics">
+        <section class="full-width" id="admin-analytics">
+          <div class="section-head">
+            <h2>Analytics</h2>
+            <button id="analytics-refresh" class="btn-sm">Refresh</button>
+            <button id="analytics-export" class="btn-sm secondary">Export CSV</button>
+          </div>
+
+          <div id="analytics-summary"></div>
+
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h3>Registrations (last 30 days)</h3>
+              <canvas id="chart-registrations" height="180"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3>Penalties Collected (last 30 days)</h3>
+              <canvas id="chart-penalties" height="180"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3>Reputation Distribution</h3>
+              <canvas id="chart-reputation" height="180"></canvas>
+            </div>
+            <div class="chart-card">
+              <h3>Supplier Types</h3>
+              <canvas id="chart-types" height="180"></canvas>
+            </div>
+          </div>
+
+          <div id="analytics-leaderboard" style="margin-top:16px;"></div>
+        </section>
+      </div>
+
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- SUPPLIER DASHBOARD                                       -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div id="supplier-dashboard" class="dashboard" style="display:none;">
+
+      <section class="full-width" id="apply-section">
+        <div class="section-head"><h2>Register New Supplier</h2></div>
+        <p class="help">Apply as a new supplier. Pay 100,000 wei. Status goes to Pending until the admin approves.</p>
+        <div class="controls-row">
+          <input type="text" id="supplier-name" placeholder="Supplier name (e.g. Red Cross Mumbai)" />
+          <select id="supplier-type">
+            <option value="0">NGO</option>
+            <option value="1">Vendor</option>
+            <option value="2">Corporate</option>
+            <option value="3">Individual</option>
+            <option value="4">Government</option>
+            <option value="5">Healthcare</option>
+            <option value="6">Educational</option>
+            <option value="7">Religious</option>
+            <option value="8">Other</option>
+          </select>
+          <button id="apply-supplier" class="btn-sm">Apply (100,000 wei)</button>
+        </div>
+        <div id="apply-status"></div>
+      </section>
+
+      <section class="full-width" id="my-suppliers-section">
+        <div class="section-head"><h2>My Suppliers</h2>
+          <button id="load-my-suppliers" class="btn-sm">Load My Suppliers</button>
+        </div>
+        <div id="my-suppliers-output"></div>
+      </section>
+
+      <section class="full-width" id="selected-supplier-section" style="display:none;">
+        <div class="section-head"><h2>Selected Supplier</h2></div>
+        <div id="selected-supplier-info"></div>
+      </section>
+
+      <div class="supplier-grid">
+        <section id="resource-section">
+          <div class="section-head"><h2>Resource Management</h2></div>
+          <select id="resource-type">
+            <option value="0">Water</option>
+            <option value="1">Clothing</option>
+            <option value="2">Medicine</option>
+            <option value="3">Food</option>
+          </select>
+          <input type="number" id="resource-quantity" placeholder="Quantity" />
+          <div class="controls-row">
+            <button id="register-resource" class="btn-sm">Register</button>
+            <button id="update-quantity" class="btn-sm">Update</button>
+          </div>
+          <div id="resource-status"></div>
+        </section>
+
+        <section id="countdown-section">
+          <div class="section-head"><h2>Compliance Countdown</h2>
+            <button id="load-countdown" class="btn-sm">Load</button>
+          </div>
+          <div id="countdown-output"></div>
+        </section>
+
+        <section id="compliance-section">
+          <div class="section-head"><h2>Penalty</h2></div>
+          <div class="controls-row">
+            <button id="calculate-penalty" class="btn-sm">Calculate</button>
+            <button id="pay-penalty" class="btn-sm success">Pay &amp; Reactivate</button>
+          </div>
+          <div id="compliance-status"></div>
+        </section>
+
+        <section id="escrow-section">
+          <div class="section-head"><h2>Escrow</h2>
+            <button id="load-escrow" class="btn-sm">Load</button>
+          </div>
+          <div id="escrow-status"></div>
+        </section>
+
+        <section id="reputation-section">
+          <div class="section-head"><h2>Reputation</h2>
+            <button id="load-reputation" class="btn-sm">Load</button>
+          </div>
+          <div id="reputation-status"></div>
+        </section>
+
+        <section id="simulation-section">
+          <div class="section-head"><h2>Time Simulation</h2></div>
+          <div class="controls-row">
+            <button id="skip-1-day" class="btn-sm">+25h</button>
+            <button id="skip-3-days" class="btn-sm">+3d</button>
+            <button id="skip-10-days" class="btn-sm">+10d</button>
+          </div>
+          <div id="time-status" class="status"></div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- GLOBAL — stats + events                                  -->
+    <!-- ═══════════════════════════════════════════════════════ -->
     <section id="statistics-section">
-      <h2>Statistics</h2>
-      <button id="load-stats">Load Statistics</button>
+      <div class="section-head"><h2>Statistics</h2>
+        <button id="load-stats" class="btn-sm">Load Statistics</button>
+      </div>
       <div id="stats-output"></div>
     </section>
 
     <section id="events-section">
-      <h2>Live Event Log</h2>
-      <p style="font-size:0.82rem; color:#6b7280; margin-bottom:8px;">Real-time feed of contract events. New events appear as transactions are mined.</p>
-      <button id="toggle-events">Start Listening</button>
-      <button id="clear-events">Clear</button>
-      <div id="event-log" style="margin-top:12px; max-height:280px; overflow-y:auto; background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-family:'Courier New',monospace; font-size:12.5px; line-height:1.7;">
-        <p style="color:#94a3b8; margin:0;">Listening paused.</p>
+      <div class="section-head"><h2>Live Event Log</h2>
+        <button id="toggle-events" class="btn-sm">Start Listening</button>
+        <button id="clear-events" class="btn-sm secondary">Clear</button>
       </div>
+      <div id="event-log" class="event-log">
+        <div style="color:#94a3b8;">Not listening. Click "Start Listening" to stream events.</div>
+      </div>
+    </section>
+
+    <section id="not-connected-section">
+      <div class="section-head"><h2>Welcome</h2></div>
+      <p>Connect MetaMask to continue. Admin wallets see the admin dashboard; all others see the supplier dashboard.</p>
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="ethers.min.js"></script>
   <script src="app.js"></script>
 </body>

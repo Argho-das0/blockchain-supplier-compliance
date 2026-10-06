@@ -3,304 +3,167 @@ const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 
 describe("SupplierCompliance", function () {
-  let contract;
-  let owner, supplier1, supplier2, supplier3;
-  const REGISTRATION_FEE = ethers.parseUnits("100000", 0);
+  let contract, admin, s1, s2, s3;
+  const FEE = 100000n;
 
-  beforeEach(async function () {
-    [owner, supplier1, supplier2, supplier3] = await ethers.getSigners();
-    const SupplierCompliance = await ethers.getContractFactory("SupplierCompliance");
-    contract = await SupplierCompliance.deploy();
+  beforeEach(async () => {
+    [admin, s1, s2, s3] = await ethers.getSigners();
+    const C = await ethers.getContractFactory("SupplierCompliance");
+    contract = await C.deploy();
     await contract.waitForDeployment();
   });
 
-  describe("Supplier Registration", function () {
-    it("Should register a supplier with correct fee", async function () {
-      await expect(
-        contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE })
-      ).to.emit(contract, "SupplierRegistered");
-
-      const info = await contract.getSupplierInfo(supplier1.address);
-      expect(info.verified).to.equal(true);
-      expect(info.active).to.equal(true);
+  describe("Admin", () => {
+    it("deployer becomes admin", async () => {
+      expect(await contract.getAdmin()).to.equal(admin.address);
     });
-
-    it("Should reject registration with incorrect fee", async function () {
-      await expect(
-        contract.connect(supplier1).registerSupplier({ value: 50000 })
-      ).to.be.revertedWith("Incorrect registration fee");
+    it("admin can be reassigned", async () => {
+      await contract.setAdmin(s1.address);
+      expect(await contract.getAdmin()).to.equal(s1.address);
     });
-
-    it("Should prevent duplicate registration", async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      await expect(
-        contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE })
-      ).to.be.revertedWith("Supplier already registered");
-    });
-
-    it("Should track total registered suppliers", async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      await contract.connect(supplier2).registerSupplier({ value: REGISTRATION_FEE });
-      expect(await contract.getTotalRegisteredSuppliers()).to.equal(2);
+    it("non-admin cannot setAdmin", async () => {
+      await expect(contract.connect(s1).setAdmin(s1.address))
+        .to.be.revertedWith("Only admin can call this");
     });
   });
 
-  describe("Resource Registration", function () {
-    beforeEach(async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
+  describe("Apply + approve", () => {
+    it("wallet can apply, state pending", async () => {
+      await contract.connect(s1).applyAsSupplier("Red Cross", 0, { value: FEE });
+      const ids = await contract.getSupplierIdsOf(s1.address);
+      const s = await contract.getSupplier(ids[0]);
+      expect(s[2]).to.equal("Red Cross");
+      expect(Number(s[4])).to.equal(0);
     });
-
-    it("Should register water resource", async function () {
-      await expect(contract.connect(supplier1).registerResource(0, 1000))
-        .to.emit(contract, "ResourceRegistered")
-        .withArgs(supplier1.address, "Water");
+    it("admin approves; supplier active", async () => {
+      await contract.connect(s1).applyAsSupplier("Red Cross", 0, { value: FEE });
+      await contract.approveSupplier(1);
+      const s = await contract.getSupplier(1);
+      expect(Number(s[4])).to.equal(1);
     });
-
-    it("Should register food resource", async function () {
-      await expect(contract.connect(supplier1).registerResource(3, 500))
-        .to.emit(contract, "ResourceRegistered")
-        .withArgs(supplier1.address, "Food");
+    it("one wallet can own multiple suppliers", async () => {
+      await contract.connect(s1).applyAsSupplier("A", 0, { value: FEE });
+      await contract.connect(s1).applyAsSupplier("B", 1, { value: FEE });
+      const ids = await contract.getSupplierIdsOf(s1.address);
+      expect(ids.length).to.equal(2);
     });
-
-    it("Should reject invalid resource type", async function () {
-      await expect(
-        contract.connect(supplier1).registerResource(4, 100)
-      ).to.be.revertedWith("Invalid resource type");
-    });
-
-    it("Should reject duplicate resource", async function () {
-      await contract.connect(supplier1).registerResource(0, 1000);
-      await expect(
-        contract.connect(supplier1).registerResource(0, 2000)
-      ).to.be.revertedWith("Resource already registered");
-    });
-
-    it("Should reject zero quantity", async function () {
-      await expect(
-        contract.connect(supplier1).registerResource(0, 0)
-      ).to.be.revertedWith("Quantity must be greater than zero");
+    it("reject refunds fee", async () => {
+      const before = await ethers.provider.getBalance(s1.address);
+      const tx = await contract.connect(s1).applyAsSupplier("X", 0, { value: FEE });
+      await tx.wait();
+      const mid = await ethers.provider.getBalance(s1.address);
+      expect(mid).to.be.lt(before);
+      await contract.rejectSupplier(1);
+      const after = await ethers.provider.getBalance(s1.address);
+      expect(after).to.be.gt(mid);
     });
   });
 
-  describe("Quantity Management", function () {
-    beforeEach(async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      await contract.connect(supplier1).registerResource(0, 1000);
+  describe("Resource ops", () => {
+    beforeEach(async () => {
+      await contract.connect(s1).applyAsSupplier("NGO1", 0, { value: FEE });
+      await contract.approveSupplier(1);
     });
-
-    it("Should update resource quantity", async function () {
-      await expect(contract.connect(supplier1).updateResourceQuantity(0, 2000))
-        .to.emit(contract, "ResourceUpdated")
-        .withArgs(supplier1.address, "Water", 2000);
+    it("approved supplier can register resource", async () => {
+      await contract.connect(s1).registerResource(1, 0, 500);
+      expect(await contract.getSupplierResourceQuantity(1, 0)).to.equal(500);
     });
-
-    it("Should reject update for unregistered resource", async function () {
+    it("non-owner cannot register", async () => {
+      await expect(contract.connect(s2).registerResource(1, 0, 500))
+        .to.be.revertedWith("Not owner of supplier");
+    });
+    it("update refreshes compliance", async () => {
+      await contract.connect(s1).registerResource(1, 0, 100);
+      await time.increase(23 * 3600);
+      await contract.connect(s1).updateResourceQuantity(1, 0, 200);
+      expect(await contract.isResourceCompliant(1, 0)).to.equal(true);
+      expect(await contract.getSupplierResourceQuantity(1, 0)).to.equal(200);
+    });
+    it("update within window resets timer", async () => {
+      await contract.connect(s1).registerResource(1, 0, 100);
+      await time.increase(12 * 3600);
+      await contract.connect(s1).updateResourceQuantity(1, 0, 400);
+      const remaining = await contract.remainingComplianceTime(1, 0);
+      expect(remaining).to.be.gt(23 * 3600);
+    });
+    it("update after window expires reverts", async () => {
+      await contract.connect(s1).registerResource(1, 0, 100);
+      await time.increase(25 * 3600);
       await expect(
-        contract.connect(supplier1).updateResourceQuantity(1, 500)
-      ).to.be.revertedWith("Resource not registered");
+        contract.connect(s1).updateResourceQuantity(1, 0, 500)
+      ).to.be.revertedWith("Compliance window expired");
+    });
+    it("update at boundary + 1s reverts", async () => {
+      await contract.connect(s1).registerResource(1, 0, 100);
+      await time.increase(24 * 3600 + 1);
+      await expect(
+        contract.connect(s1).updateResourceQuantity(1, 0, 500)
+      ).to.be.revertedWith("Compliance window expired");
+    });
+    it("update at boundary - 2s succeeds", async () => {
+      await contract.connect(s1).registerResource(1, 0, 100);
+      await time.increase(24 * 3600 - 2);
+      await contract.connect(s1).updateResourceQuantity(1, 0, 500);
+      expect(await contract.getSupplierResourceQuantity(1, 0)).to.equal(500);
     });
   });
 
-  describe("Compliance Mechanism", function () {
-    beforeEach(async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      await contract.connect(supplier1).registerResource(0, 1000);
+  describe("Deactivation + penalty", () => {
+    beforeEach(async () => {
+      await contract.connect(s1).applyAsSupplier("NGO1", 0, { value: FEE });
+      await contract.approveSupplier(1);
+      await contract.connect(s1).registerResource(1, 0, 100);
     });
-
-    it("Should be compliant immediately", async function () {
-      expect(await contract.isResourceCompliant(supplier1.address, 0)).to.equal(true);
+    it("admin deactivates non-compliant", async () => {
+      await time.increase(25 * 3600);
+      await contract.checkAndDeactivate(1);
+      const s = await contract.getSupplier(1);
+      expect(Number(s[4])).to.equal(2);
     });
-
-    it("Should be compliant within one day", async function () {
-      await time.increase(12 * 60 * 60);
-      expect(await contract.isResourceCompliant(supplier1.address, 0)).to.equal(true);
+    it("penalty escalates", async () => {
+      await time.increase(25 * 3600);
+      await contract.checkAndDeactivate(1);
+      expect(await contract.calculatePenalty(1)).to.equal(200000n);
+      await time.increase(10 * 86400);
+      expect(await contract.calculatePenalty(1)).to.equal(800000n);
     });
-
-    it("Should become non-compliant after one day", async function () {
-      await time.increase(24 * 60 * 60 + 1);
-      expect(await contract.isResourceCompliant(supplier1.address, 0)).to.equal(false);
-    });
-
-    it("Should refresh compliance on update", async function () {
-      await time.increase(23 * 60 * 60);
-      await contract.connect(supplier1).updateResourceQuantity(0, 1500);
-      await time.increase(12 * 60 * 60);
-      expect(await contract.isResourceCompliant(supplier1.address, 0)).to.equal(true);
-    });
-  });
-
-  describe("Deactivation", function () {
-    beforeEach(async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      await contract.connect(supplier1).registerResource(0, 1000);
-    });
-
-    it("Should deactivate non-compliant supplier", async function () {
-      await time.increase(24 * 60 * 60 + 1);
-      await expect(contract.connect(owner).checkAndDeactivate(supplier1.address))
-        .to.emit(contract, "SupplierDeactivated");
-    });
-
-    it("Should prevent inactive supplier from updating", async function () {
-      await time.increase(24 * 60 * 60 + 1);
-      await contract.connect(owner).checkAndDeactivate(supplier1.address);
-      await expect(
-        contract.connect(supplier1).updateResourceQuantity(0, 2000)
-      ).to.be.revertedWith("Supplier is inactive");
-    });
-
-    it("Should reject deactivation from a non-owner wallet", async function () {
-      await time.increase(24 * 60 * 60 + 1);
-      await expect(
-        contract.connect(supplier2).checkAndDeactivate(supplier1.address)
-      ).to.be.revertedWith("Only compliance officer can call this");
+    it("owner can pay + reactivate", async () => {
+      await time.increase(25 * 3600);
+      await contract.checkAndDeactivate(1);
+      const p = await contract.calculatePenalty(1);
+      await contract.connect(s1).payPenaltyAndReactivate(1, { value: p });
+      const s = await contract.getSupplier(1);
+      expect(Number(s[4])).to.equal(1);
     });
   });
 
-  describe("Penalty and Reactivation", function () {
-    beforeEach(async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      await contract.connect(supplier1).registerResource(0, 1000);
-      await time.increase(24 * 60 * 60 + 1);
-      await contract.connect(owner).checkAndDeactivate(supplier1.address);
+  describe("Aggregate views", () => {
+    beforeEach(async () => {
+      await contract.connect(s1).applyAsSupplier("A", 0, { value: FEE });
+      await contract.connect(s2).applyAsSupplier("B", 1, { value: FEE });
+      await contract.approveSupplier(1);
+      await contract.approveSupplier(2);
+      await contract.connect(s1).registerResource(1, 0, 1000);
+      await contract.connect(s2).registerResource(2, 0, 2000);
     });
-
-    it("Should calculate low penalty", async function () {
-      const penalty = await contract.calculatePenalty(supplier1.address);
-      expect(penalty).to.equal(200000);
+    it("getStats", async () => {
+      const st = await contract.getStats();
+      expect(st[0]).to.equal(2);
+      expect(st[1]).to.equal(2);
+      expect(st[5]).to.equal(2n * FEE);
     });
-
-    it("Should calculate mid penalty after several days", async function () {
-      await time.increase(3 * 24 * 60 * 60);
-      const penalty = await contract.calculatePenalty(supplier1.address);
-      expect(penalty).to.equal(400000);
+    it("getTypeCounts", async () => {
+      const c = await contract.getTypeCounts();
+      expect(Number(c[0])).to.equal(1);
+      expect(Number(c[1])).to.equal(1);
     });
-
-    it("Should reject incorrect penalty payment", async function () {
-      await expect(
-        contract.connect(supplier1).payPenaltyAndReactivate({ value: 100000 })
-      ).to.be.revertedWith("Incorrect penalty amount");
+    it("getTopPerformers", async () => {
+      const res = await contract.getTopPerformers(5);
+      expect(res[0].length).to.be.gte(1);
     });
-
-    it("Should reactivate after penalty payment", async function () {
-      const penalty = await contract.calculatePenalty(supplier1.address);
-      await expect(
-        contract.connect(supplier1).payPenaltyAndReactivate({ value: penalty })
-      ).to.emit(contract, "SupplierReactivated");
-    });
-
-    it("Should resume updates after reactivation", async function () {
-      const penalty = await contract.calculatePenalty(supplier1.address);
-      await contract.connect(supplier1).payPenaltyAndReactivate({ value: penalty });
-      await expect(contract.connect(supplier1).updateResourceQuantity(0, 3000))
-        .to.emit(contract, "ResourceUpdated");
-    });
-  });
-
-  describe("Statistics", function () {
-    beforeEach(async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      await contract.connect(supplier2).registerSupplier({ value: REGISTRATION_FEE });
-      await contract.connect(supplier1).registerResource(0, 1000);
-      await contract.connect(supplier2).registerResource(0, 2000);
-    });
-
-    it("Should return correct totals", async function () {
-      expect(await contract.getTotalRegisteredSuppliers()).to.equal(2);
-      expect(await contract.getActiveSuppliersCount()).to.equal(2);
-    });
-
-    it("Should return aggregate quantities", async function () {
-      expect(await contract.getAggregateResourceQuantity(0)).to.equal(3000);
-    });
-  });
-
-  describe("Reputation", function () {
-    it("Should start at 100 on registration", async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      expect(await contract.getSupplierReputation(supplier1.address)).to.equal(100);
-    });
-
-    it("Should increase by 1 on each resource update", async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      await contract.connect(supplier1).registerResource(0, 1000);
-      await contract.connect(supplier1).updateResourceQuantity(0, 1500);
-      expect(await contract.getSupplierReputation(supplier1.address)).to.equal(101);
-    });
-
-    it("Should drop by 20 on deactivation", async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      await contract.connect(supplier1).registerResource(0, 1000);
-      await time.increase(24 * 60 * 60 + 1);
-      await contract.connect(owner).checkAndDeactivate(supplier1.address);
-      expect(await contract.getSupplierReputation(supplier1.address)).to.equal(80);
-    });
-
-    it("Should return correct tier based on score", async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      expect(await contract.getReputationTier(supplier1.address)).to.equal("Bronze");
-    });
-
-    it("Should cap at 200", async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      await contract.connect(supplier1).registerResource(0, 1000);
-
-      for (let i = 0; i < 120; i++) {
-        await contract.connect(supplier1).updateResourceQuantity(0, 1000 + i);
-      }
-
-      expect(await contract.getSupplierReputation(supplier1.address)).to.equal(200);
-    });
-  });
-
-  describe("Emergency Pause", function () {
-    it("Should revert state-changing operations when paused", async function () {
-      await contract.connect(owner).pause();
-      await expect(
-        contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE })
-      ).to.be.revertedWith("Contract is paused");
-    });
-
-    it("Should prevent resource updates when paused", async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      await contract.connect(supplier1).registerResource(0, 1000);
-      await contract.connect(owner).pause();
-      await expect(
-        contract.connect(supplier1).updateResourceQuantity(0, 2000)
-      ).to.be.revertedWith("Contract is paused");
-    });
-
-    it("Should allow view functions when paused", async function () {
-      await contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE });
-      await contract.connect(owner).pause();
-      expect(await contract.getTotalRegisteredSuppliers()).to.equal(1);
-    });
-
-    it("Should resume normal operation after unpause", async function () {
-      await contract.connect(owner).pause();
-      await contract.connect(owner).unpause();
-      await expect(
-        contract.connect(supplier1).registerSupplier({ value: REGISTRATION_FEE })
-      ).to.not.be.reverted;
-    });
-
-    it("Should prevent non-owner from pausing", async function () {
-      await expect(
-        contract.connect(supplier1).pause()
-      ).to.be.revertedWith("Only compliance officer can call this");
-    });
-
-    it("Should prevent pausing when already paused", async function () {
-      await contract.connect(owner).pause();
-      await expect(
-        contract.connect(owner).pause()
-      ).to.be.revertedWith("Already paused");
-    });
-
-    it("Should prevent unpausing when not paused", async function () {
-      await expect(
-        contract.connect(owner).unpause()
-      ).to.be.revertedWith("Not paused");
+    it("getFrequentDefaulters empty", async () => {
+      const res = await contract.getFrequentDefaulters(5);
+      expect(res[0].length).to.equal(0);
     });
   });
 });
