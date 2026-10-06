@@ -1,0 +1,35 @@
+﻿
+
+  SupplierCompliance
+    Admin
+      Γ£ö deployer becomes admin (123ms)
+      Γ£ö admin can be reassigned
+      Γ£ö non-admin cannot setAdmin
+    Apply + approve
+      Γ£ö wallet can apply, state pending
+      Γ£ö admin approves; supplier active
+      Γ£ö one wallet can own multiple suppliers
+      Γ£ö reject refunds fee
+    Resource ops
+      Γ£ö approved supplier can register resource
+      Γ£ö non-owner cannot register
+      Γ£ö update refreshes compliance
+      Γ£ö update within window resets timer
+      Γ£ö update after window expires reverts
+      Γ£ö update at boundary + 1s reverts
+      Γ£ö update at boundary - 2s succeeds
+    Deactivation + penalty
+      Γ£ö admin deactivates non-compliant
+      Γ£ö penalty escalates
+      Γ£ö owner can pay + reactivate
+    Aggregate views
+      Γ£ö getStats
+      Γ£ö getTypeCounts
+      Γ£ö getTopPerformers
+      Γ£ö getFrequentDefaulters empty
+      Γ£ö getSuppliersCountForResource returns correct counts
+      Γ£ö getAggregateResourceQuantity returns correct totals
+
+
+  23 passing (4s)
+

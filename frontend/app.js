@@ -78,18 +78,19 @@ const CONTRACT_ABI = [
   "function getTopPerformers(uint256) view returns (uint256[],uint256[])",
   "function getFrequentDefaulters(uint256) view returns (uint256[],uint256[])",
   "function getAggregateResourceQuantity(uint8) view returns (uint256)",
+  "function getSuppliersCountForResource(uint8) view returns (uint256)",
   "event SupplierApplied(uint256 indexed,address indexed,string,uint8,uint256)",
-  "event SupplierApproved(uint256 indexed,uint256)",
-  "event SupplierRejected(uint256 indexed,uint256,uint256)",
-  "event SupplierDeactivated(uint256 indexed,uint256,uint256)",
-  "event SupplierReactivated(uint256 indexed,uint256)",
-  "event ResourceRegistered(uint256 indexed,string,uint256)",
-  "event ResourceUpdated(uint256 indexed,string,uint256,uint256)",
-  "event PenaltyPaid(uint256 indexed,uint256,uint256)",
-  "event EscrowDeposited(uint256 indexed,uint256,uint256,uint256)",
-  "event EscrowReleased(uint256 indexed,uint256,uint256)",
-  "event EscrowForfeited(uint256 indexed,uint256,address,uint256)",
-  "event ReputationChanged(uint256 indexed,uint256,uint256,string,uint256)",
+  "event SupplierApproved(uint256 indexed,address indexed,uint256)",
+  "event SupplierRejected(uint256 indexed,address indexed,uint256,uint256)",
+  "event SupplierDeactivated(uint256 indexed,address indexed,uint256,uint256)",
+  "event SupplierReactivated(uint256 indexed,address indexed,uint256)",
+  "event ResourceRegistered(uint256 indexed,address indexed,string,uint256)",
+  "event ResourceUpdated(uint256 indexed,address indexed,string,uint256,uint256)",
+  "event PenaltyPaid(uint256 indexed,address indexed,uint256,uint256)",
+  "event EscrowDeposited(uint256 indexed,address indexed,uint256,uint256,uint256)",
+  "event EscrowReleased(uint256 indexed,address indexed,uint256,uint256)",
+  "event EscrowForfeited(uint256 indexed,address indexed,uint256,address,uint256)",
+  "event ReputationChanged(uint256 indexed,address indexed,uint256,uint256,string,uint256)",
   "event ContractPaused(address indexed,uint256)",
   "event ContractUnpaused(address indexed,uint256)",
   "event AdminChanged(address indexed,address indexed)",
@@ -151,9 +152,6 @@ function trustColor(tier) {
   return "#dc2626";
 }
 
-// ============================================================
-// ROLE ROUTING
-// ============================================================
 function showAdminDashboard() {
   document.getElementById("admin-dashboard").style.display = "block";
   document.getElementById("supplier-dashboard").style.display = "none";
@@ -174,9 +172,6 @@ function showSupplierDashboard() {
   badge.textContent = "Supplier";
 }
 
-// ============================================================
-// ADMIN TABS
-// ============================================================
 function activateAdminTab(tabName) {
   document.querySelectorAll("#admin-dashboard .tab-btn").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.tab === tabName);
@@ -199,9 +194,6 @@ document.querySelectorAll("#admin-dashboard .tab-btn").forEach(btn => {
   btn.addEventListener("click", () => activateAdminTab(btn.dataset.tab));
 });
 
-// ============================================================
-// CONNECT
-// ============================================================
 async function connectWallet(interactive) {
   if (!window.ethereum) {
     if (interactive) log("MetaMask not detected.");
@@ -269,9 +261,6 @@ if (window.ethereum) {
   window.ethereum.on("accountsChanged", () => window.location.reload());
 }
 
-// ============================================================
-// ADMIN DASHBOARD
-// ============================================================
 document.getElementById("admin-refresh").addEventListener("click", loadAdminDashboard);
 document.getElementById("admin-approve-all").addEventListener("click", async () => {
   try {
@@ -523,17 +512,18 @@ async function loadAdminTypes() {
 async function loadAdminResources() {
   const rc = getReadContract();
   const q = [];
-  for (let i = 0; i < 4; i++) q.push(await rc.getAggregateResourceQuantity(i));
+  const c = [];
+  for (let i = 0; i < 4; i++) {
+    q.push(await rc.getAggregateResourceQuantity(i));
+    c.push(await rc.getSuppliersCountForResource(i));
+  }
   document.getElementById("admin-resources-output").innerHTML = `
     <table>
-      <tr><th>Resource</th><th>Total Quantity</th></tr>
-      ${RESOURCE_NAMES.map((n, i) => `<tr><td>${n}</td><td>${q[i].toString()}</td></tr>`).join("")}
+      <tr><th>Resource</th><th>Suppliers</th><th>Total Quantity</th></tr>
+      ${RESOURCE_NAMES.map((n, i) => `<tr><td>${n}</td><td>${c[i].toString()}</td><td>${q[i].toString()}</td></tr>`).join("")}
     </table>`;
 }
 
-// ============================================================
-// ANALYTICS
-// ============================================================
 async function loadAllEvents() {
   const rc = getReadContract();
   const names = [
@@ -595,15 +585,15 @@ function computeMetrics(events) {
         s.appliedAt = Number(a[4]) || ev.timestamp;
         break;
       }
-      case "SupplierApproved": get(a[0]).approvedAt = Number(a[1]) || ev.timestamp; break;
+      case "SupplierApproved": get(a[0]).approvedAt = Number(a[2]) || ev.timestamp; break;
       case "SupplierDeactivated": get(a[0]).deactivations++; break;
       case "SupplierReactivated": get(a[0]).reactivations++; break;
-      case "PenaltyPaid": get(a[0]).penaltiesPaid += BigInt(a[1]); break;
-      case "EscrowReleased": get(a[0]).escrowReleased += BigInt(a[1]); break;
-      case "EscrowForfeited": get(a[0]).escrowForfeited += BigInt(a[1]); break;
+      case "PenaltyPaid": get(a[0]).penaltiesPaid += BigInt(a[2]); break;
+      case "EscrowReleased": get(a[0]).escrowReleased += BigInt(a[2]); break;
+      case "EscrowForfeited": get(a[0]).escrowForfeited += BigInt(a[2]); break;
       case "ResourceRegistered": get(a[0]).resourcesRegistered++; break;
       case "ResourceUpdated": get(a[0]).resourceUpdates++; break;
-      case "ReputationChanged": get(a[0]).reputationNow = Number(a[2]); break;
+      case "ReputationChanged": get(a[0]).reputationNow = Number(a[3]); break;
     }
     if (a[0] !== undefined) get(a[0]).lastEventAt = Math.max(get(a[0]).lastEventAt, ev.timestamp);
   }
@@ -643,7 +633,7 @@ function computeMetrics(events) {
     const key = Math.floor(ev.timestamp / dayMs) * dayMs;
     if (!days[key]) continue;
     if (ev.name === "SupplierApplied") days[key].applied++;
-    if (ev.name === "PenaltyPaid") days[key].penalties += BigInt(ev.args[1]);
+    if (ev.name === "PenaltyPaid") days[key].penalties += BigInt(ev.args[2]);
     if (ev.name === "SupplierDeactivated") days[key].deactivations++;
   }
 
@@ -803,9 +793,6 @@ if (_analyticsRefreshBtn) _analyticsRefreshBtn.addEventListener("click", () => r
 const _analyticsExportBtn = document.getElementById("analytics-export");
 if (_analyticsExportBtn) _analyticsExportBtn.addEventListener("click", exportAnalyticsCSV);
 
-// ============================================================
-// ADMIN CONTROLS
-// ============================================================
 document.getElementById("check-pause-status").addEventListener("click", async () => {
   const rc = getReadContract();
   const p = await rc.paused();
@@ -837,9 +824,6 @@ document.getElementById("set-aid-fund").addEventListener("click", async () => {
   catch (err) { log("❌ " + (err.reason || err.message)); }
 });
 
-// ============================================================
-// SUPPLIER — Apply
-// ============================================================
 document.getElementById("apply-supplier").addEventListener("click", async () => {
   try {
     const name = document.getElementById("supplier-name").value.trim();
@@ -855,9 +839,6 @@ document.getElementById("apply-supplier").addEventListener("click", async () => 
   } catch (err) { log("❌ " + (err.reason || err.message)); }
 });
 
-// ============================================================
-// SUPPLIER — My suppliers
-// ============================================================
 document.getElementById("load-my-suppliers").addEventListener("click", loadMySuppliers);
 
 async function loadMySuppliers() {
@@ -908,7 +889,6 @@ async function refreshSelectedSupplierPanel() {
   const totalTrack = compliantUpdates + missedUpdates;
   const ratioPct = totalTrack === 0 ? 0 : Math.round((compliantUpdates / totalTrack) * 100);
 
-  // Predict penalty from the contract
   let predictedLoss = "—";
   try {
     const loss = await rc.predictDeactivationPenalty(selectedSupplierId);
@@ -932,9 +912,6 @@ async function refreshSelectedSupplierPanel() {
   `;
 }
 
-// ============================================================
-// SUPPLIER — Resource ops
-// ============================================================
 document.getElementById("register-resource").addEventListener("click", async () => {
   if (!selectedSupplierId) return log("❌ Select a supplier first");
   try {
@@ -988,9 +965,6 @@ document.getElementById("load-countdown").addEventListener("click", async () => 
   } catch (err) { log("❌ " + (err.reason || err.message)); }
 });
 
-// ============================================================
-// SUPPLIER — Penalty / Escrow / Reputation
-// ============================================================
 document.getElementById("calculate-penalty").addEventListener("click", async () => {
   if (!selectedSupplierId) return log("❌ Select a supplier");
   try {
@@ -1083,9 +1057,6 @@ document.getElementById("load-reputation").addEventListener("click", async () =>
   } catch (err) { log("❌ " + (err.reason || err.message)); }
 });
 
-// ============================================================
-// TIME SIMULATION
-// ============================================================
 async function advanceTime(seconds, label) {
   try {
     const p = new ethers.providers.JsonRpcProvider(RPC_URL);
@@ -1100,9 +1071,6 @@ document.getElementById("skip-1-day").addEventListener("click", () => advanceTim
 document.getElementById("skip-3-days").addEventListener("click", () => advanceTime(259200, "3 Days"));
 document.getElementById("skip-10-days").addEventListener("click", () => advanceTime(864000, "10 Days"));
 
-// ============================================================
-// EVENT LOG
-// ============================================================
 let eventListeners = [];
 let listening = false;
 
@@ -1119,21 +1087,21 @@ async function startListening() {
   const rc = getReadContract();
   const handlers = [
     ["SupplierApplied", (id, w, n) => appendEvent(`🆕 Applied #${id} ${n}`)],
-    ["SupplierApproved", (id) => appendEvent(`✅ Approved #${id}`)],
-    ["SupplierRejected", (id) => appendEvent(`🚫 Rejected #${id}`)],
-    ["SupplierDeactivated", (id, loss) => appendEvent(`🚨 Deactivated #${id} (rep −${loss})`)],
-    ["SupplierReactivated", (id) => appendEvent(`🔁 Reactivated #${id}`)],
-    ["ResourceRegistered", (id, r) => appendEvent(`📦 #${id} registered ${r}`)],
-    ["ResourceUpdated", (id, r, q) => appendEvent(`🔄 #${id} ${r} = ${q}`)],
-    ["PenaltyPaid", (id, amt) => appendEvent(`💰 #${id} paid ${amt}`)],
-    ["EscrowDeposited", (id, amt) => appendEvent(`🔒 #${id} escrow ${amt}`)],
-    ["EscrowReleased", (id, amt) => appendEvent(`💵 #${id} refunded ${amt}`)],
-    ["EscrowForfeited", (id, amt, to) => appendEvent(`💸 #${id} forfeited ${amt} to ${shorten(to)}`)],
-    ["ReputationChanged", (id, o, n, r) => appendEvent(`⭐ #${id} rep ${o}→${n} (${r})`)],
+    ["SupplierApproved", (id, w) => appendEvent(`✅ Approved #${id}`)],
+    ["SupplierRejected", (id, w) => appendEvent(`🚫 Rejected #${id}`)],
+    ["SupplierDeactivated", (id, w, loss) => appendEvent(`🚨 Deactivated #${id} (rep -${loss})`)],
+    ["SupplierReactivated", (id, w) => appendEvent(`🔁 Reactivated #${id}`)],
+    ["ResourceRegistered", (id, w, r) => appendEvent(`📦 #${id} registered ${r}`)],
+    ["ResourceUpdated", (id, w, r, q) => appendEvent(`🔄 #${id} ${r} = ${q}`)],
+    ["PenaltyPaid", (id, w, amt) => appendEvent(`💰 #${id} paid ${amt}`)],
+    ["EscrowDeposited", (id, w, amt) => appendEvent(`🔒 #${id} escrow ${amt}`)],
+    ["EscrowReleased", (id, w, amt) => appendEvent(`💵 #${id} refunded ${amt}`)],
+    ["EscrowForfeited", (id, w, amt, to) => appendEvent(`💸 #${id} forfeited ${amt} to ${shorten(to)}`)],
+    ["ReputationChanged", (id, w, o, n, r) => appendEvent(`⭐ #${id} rep ${o}->${n} (${r})`)],
     ["ContractPaused", (by) => appendEvent(`⏸️ Paused by ${shorten(by)}`)],
     ["ContractUnpaused", (by) => appendEvent(`▶️ Unpaused by ${shorten(by)}`)],
-    ["AdminChanged", (o, n) => appendEvent(`👤 Admin ${shorten(o)} → ${shorten(n)}`)],
-    ["AidFundAddressUpdated", (a) => appendEvent(`🏦 Aid fund → ${shorten(a)}`)]
+    ["AdminChanged", (o, n) => appendEvent(`👤 Admin ${shorten(o)} -> ${shorten(n)}`)],
+    ["AidFundAddressUpdated", (a) => appendEvent(`🏦 Aid fund -> ${shorten(a)}`)]
   ];
   for (const [name, fn] of handlers) {
     const wrapped = (...args) => fn(...args);
@@ -1164,9 +1132,6 @@ document.getElementById("clear-events").addEventListener("click", () => {
   document.getElementById("event-log").innerHTML = `<p style="color:#94a3b8; margin:0;">Cleared.</p>`;
 });
 
-// ============================================================
-// STATS
-// ============================================================
 document.getElementById("load-stats").addEventListener("click", async () => {
   try {
     const rc = getReadContract();
@@ -1187,9 +1152,6 @@ document.getElementById("load-stats").addEventListener("click", async () => {
   } catch (err) { log("❌ " + (err.reason || err.message)); }
 });
 
-// ============================================================
-// AUTO-CONNECT
-// ============================================================
 async function tryAutoConnect() {
   if (!window.ethereum) return;
   try {

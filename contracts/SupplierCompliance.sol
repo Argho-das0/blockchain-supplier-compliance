@@ -25,7 +25,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     uint256 public constant REPUTATION_PROMPT_WINDOW = 1 hours;
     uint256 public constant REPUTATION_PROMPT_RELIEF = 5;
 
-    // Trust tier thresholds (successful cycles)
     uint256 public constant TRUST_DEVELOPING = 3;
     uint256 public constant TRUST_TRUSTED = 8;
     uint256 public constant TRUST_ESTABLISHED = 16;
@@ -64,7 +63,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         bool registered;
         uint256 timesDeactivated;
 
-        // Reputation & behaviour tracking
         uint256 reputationScore;
         uint256 compliantUpdates;
         uint256 missedUpdates;
@@ -72,7 +70,6 @@ contract SupplierCompliance is AutomationCompatibleInterface {
 
         uint256 totalPenaltiesPaid;
 
-        // Escrow
         uint256 escrowAmount;
         uint256 escrowStartTime;
 
@@ -101,22 +98,22 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     uint256 public totalEscrowRefunded;
 
     // ============================================================
-    // EVENTS
+    // EVENTS — supplier-scoped events now carry wallet address too
     // ============================================================
     event AdminChanged(address indexed oldAdmin, address indexed newAdmin);
     event AidFundAddressUpdated(address indexed newAddress);
     event SupplierApplied(uint256 indexed supplierId, address indexed wallet, string name, SupplierType supplierType, uint256 timestamp);
-    event SupplierApproved(uint256 indexed supplierId, uint256 timestamp);
-    event SupplierRejected(uint256 indexed supplierId, uint256 refundedAmount, uint256 timestamp);
-    event SupplierDeactivated(uint256 indexed supplierId, uint256 reputationLoss, uint256 timestamp);
-    event SupplierReactivated(uint256 indexed supplierId, uint256 timestamp);
-    event ResourceRegistered(uint256 indexed supplierId, string resource, uint256 timestamp);
-    event ResourceUpdated(uint256 indexed supplierId, string resource, uint256 quantity, uint256 timestamp);
-    event PenaltyPaid(uint256 indexed supplierId, uint256 amount, uint256 timestamp);
-    event EscrowDeposited(uint256 indexed supplierId, uint256 amount, uint256 releaseTime, uint256 timestamp);
-    event EscrowReleased(uint256 indexed supplierId, uint256 amount, uint256 timestamp);
-    event EscrowForfeited(uint256 indexed supplierId, uint256 amount, address recipient, uint256 timestamp);
-    event ReputationChanged(uint256 indexed supplierId, uint256 oldScore, uint256 newScore, string reason, uint256 timestamp);
+    event SupplierApproved(uint256 indexed supplierId, address indexed wallet, uint256 timestamp);
+    event SupplierRejected(uint256 indexed supplierId, address indexed wallet, uint256 refundedAmount, uint256 timestamp);
+    event SupplierDeactivated(uint256 indexed supplierId, address indexed wallet, uint256 reputationLoss, uint256 timestamp);
+    event SupplierReactivated(uint256 indexed supplierId, address indexed wallet, uint256 timestamp);
+    event ResourceRegistered(uint256 indexed supplierId, address indexed wallet, string resource, uint256 timestamp);
+    event ResourceUpdated(uint256 indexed supplierId, address indexed wallet, string resource, uint256 quantity, uint256 timestamp);
+    event PenaltyPaid(uint256 indexed supplierId, address indexed wallet, uint256 amount, uint256 timestamp);
+    event EscrowDeposited(uint256 indexed supplierId, address indexed wallet, uint256 amount, uint256 releaseTime, uint256 timestamp);
+    event EscrowReleased(uint256 indexed supplierId, address indexed wallet, uint256 amount, uint256 timestamp);
+    event EscrowForfeited(uint256 indexed supplierId, address indexed wallet, uint256 amount, address recipient, uint256 timestamp);
+    event ReputationChanged(uint256 indexed supplierId, address indexed wallet, uint256 oldScore, uint256 newScore, string reason, uint256 timestamp);
     event ContractPaused(address indexed by, uint256 timestamp);
     event ContractUnpaused(address indexed by, uint256 timestamp);
 
@@ -195,8 +192,8 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         totalRegisteredSuppliers++;
         totalRegistrationFeesCollected += REGISTRATION_FEE;
 
-        emit SupplierApproved(_supplierId, block.timestamp);
-        emit ReputationChanged(_supplierId, 0, REPUTATION_START, "approval", block.timestamp);
+        emit SupplierApproved(_supplierId, s.wallet, block.timestamp);
+        emit ReputationChanged(_supplierId, s.wallet, 0, REPUTATION_START, "approval", block.timestamp);
     }
 
     function approveAllPending() external onlyAdmin whenNotPaused {
@@ -209,8 +206,8 @@ contract SupplierCompliance is AutomationCompatibleInterface {
                 totalPendingSuppliers--;
                 totalRegisteredSuppliers++;
                 totalRegistrationFeesCollected += REGISTRATION_FEE;
-                emit SupplierApproved(id, block.timestamp);
-                emit ReputationChanged(id, 0, REPUTATION_START, "approval", block.timestamp);
+                emit SupplierApproved(id, s.wallet, block.timestamp);
+                emit ReputationChanged(id, s.wallet, 0, REPUTATION_START, "approval", block.timestamp);
             }
         }
     }
@@ -226,7 +223,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
 
         (bool sent, ) = payable(s.wallet).call{value: REGISTRATION_FEE}("");
         require(sent, "Refund failed");
-        emit SupplierRejected(_supplierId, REGISTRATION_FEE, block.timestamp);
+        emit SupplierRejected(_supplierId, s.wallet, REGISTRATION_FEE, block.timestamp);
     }
 
     // ============================================================
@@ -250,7 +247,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         });
         s.registeredResources.push(rType);
 
-        emit ResourceRegistered(_supplierId, _resourceName(rType), block.timestamp);
+        emit ResourceRegistered(_supplierId, s.wallet, _resourceName(rType), block.timestamp);
     }
 
     function updateResourceQuantity(uint256 _supplierId, uint8 _resourceType, uint256 _quantity)
@@ -270,10 +267,8 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         s.resources[rType].lastUpdated = block.timestamp;
         s.resources[rType].compliant = true;
 
-        // Track record
         s.compliantUpdates++;
 
-        // Reward scales with trust tier
         uint8 tier = uint8(_trustTierOf(s));
         uint256 reward = 1;
         if (tier == 1) reward = 2;
@@ -286,10 +281,10 @@ contract SupplierCompliance is AutomationCompatibleInterface {
             if (neu > REPUTATION_MAX) neu = REPUTATION_MAX;
             s.reputationScore = neu;
 
-            emit ReputationChanged(_supplierId, old, neu, "compliance_update", block.timestamp);
+            emit ReputationChanged(_supplierId, s.wallet, old, neu, "compliance_update", block.timestamp);
         }
 
-        emit ResourceUpdated(_supplierId, _resourceName(rType), _quantity, block.timestamp);
+        emit ResourceUpdated(_supplierId, s.wallet, _resourceName(rType), _quantity, block.timestamp);
     }
 
     // ============================================================
@@ -343,8 +338,8 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         s.timesDeactivated++;
         s.successfulCycles = 0;
 
-        emit ReputationChanged(_supplierId, oldRep, newRep, "deactivation", block.timestamp);
-        emit SupplierDeactivated(_supplierId, loss, block.timestamp);
+        emit ReputationChanged(_supplierId, s.wallet, oldRep, newRep, "deactivation", block.timestamp);
+        emit SupplierDeactivated(_supplierId, s.wallet, loss, block.timestamp);
     }
 
     // ============================================================
@@ -391,8 +386,8 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         s.timesDeactivated++;
         s.successfulCycles = 0;
 
-        emit ReputationChanged(id, oldRep, newRep, "deactivation", block.timestamp);
-        emit SupplierDeactivated(id, loss, block.timestamp);
+        emit ReputationChanged(id, s.wallet, oldRep, newRep, "deactivation", block.timestamp);
+        emit SupplierDeactivated(id, s.wallet, loss, block.timestamp);
     }
 
     // ============================================================
@@ -424,13 +419,12 @@ contract SupplierCompliance is AutomationCompatibleInterface {
 
         s.lastDeactivationDays = daysInactive;
 
-        // Additional relief if paid late
         uint256 lateRelief = (block.timestamp - s.deactivationTimestamp > REPUTATION_PROMPT_WINDOW)
             ? REPUTATION_PROMPT_RELIEF : 0;
         if (lateRelief > 0 && s.reputationScore > lateRelief) {
             uint256 old = s.reputationScore;
             s.reputationScore = old - lateRelief;
-            emit ReputationChanged(_supplierId, old, s.reputationScore, "late_penalty_payment", block.timestamp);
+            emit ReputationChanged(_supplierId, s.wallet, old, s.reputationScore, "late_penalty_payment", block.timestamp);
         }
 
         s.escrowAmount += msg.value;
@@ -445,9 +439,9 @@ contract SupplierCompliance is AutomationCompatibleInterface {
             s.resources[rType].compliant = true;
         }
 
-        emit PenaltyPaid(_supplierId, msg.value, block.timestamp);
-        emit EscrowDeposited(_supplierId, msg.value, block.timestamp + ESCROW_PERIOD, block.timestamp);
-        emit SupplierReactivated(_supplierId, block.timestamp);
+        emit PenaltyPaid(_supplierId, s.wallet, msg.value, block.timestamp);
+        emit EscrowDeposited(_supplierId, s.wallet, msg.value, block.timestamp + ESCROW_PERIOD, block.timestamp);
+        emit SupplierReactivated(_supplierId, s.wallet, block.timestamp);
     }
 
     // ============================================================
@@ -470,7 +464,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
 
         (bool sent, ) = payable(s.wallet).call{value: amount}("");
         require(sent, "Refund failed");
-        emit EscrowReleased(_supplierId, amount, block.timestamp);
+        emit EscrowReleased(_supplierId, s.wallet, amount, block.timestamp);
     }
 
     function forfeitEscrow(uint256 _supplierId) external {
@@ -488,7 +482,7 @@ contract SupplierCompliance is AutomationCompatibleInterface {
 
         (bool sent, ) = payable(aidFundAddress).call{value: amount}("");
         require(sent, "Aid fund failed");
-        emit EscrowForfeited(_supplierId, amount, aidFundAddress, block.timestamp);
+        emit EscrowForfeited(_supplierId, s.wallet, amount, aidFundAddress, block.timestamp);
     }
 
     function getEscrowInfo(uint256 _supplierId)
@@ -507,15 +501,12 @@ contract SupplierCompliance is AutomationCompatibleInterface {
     // ============================================================
     // REPUTATION MATH
     // ============================================================
-
-    /// @dev Compliance ratio in basis points (0..10000). 10000 = perfect.
     function _complianceRatioBps(Supplier storage s) internal view returns (uint256) {
         uint256 total = s.compliantUpdates + s.missedUpdates;
         if (total == 0) return 0;
         return (s.compliantUpdates * 10000) / total;
     }
 
-    /// @dev Trust tier based on successful cycles.
     function _trustTierOf(Supplier storage s) internal view returns (TrustTier) {
         if (s.successfulCycles >= TRUST_ESTABLISHED) return TrustTier.Established;
         if (s.successfulCycles >= TRUST_TRUSTED)     return TrustTier.Trusted;
@@ -523,10 +514,9 @@ contract SupplierCompliance is AutomationCompatibleInterface {
         return TrustTier.New;
     }
 
-    /// @dev Reputation loss for one deactivation, weighted by track record and trust.
     function _deactivationLoss(Supplier storage s) internal view returns (uint256) {
         uint256 ratio = _complianceRatioBps(s);
-        uint256 trackMultiplierBps = 20000 - ratio;   // 20000..10000
+        uint256 trackMultiplierBps = 20000 - ratio;
 
         TrustTier tier = _trustTierOf(s);
         uint256 trustMultiplierBps;
@@ -725,6 +715,20 @@ contract SupplierCompliance is AutomationCompatibleInterface {
             total += s.resources[rType].quantity;
         }
         return total;
+    }
+
+    // NEW: number of suppliers that have the resource registered
+    function getSuppliersCountForResource(uint8 _resourceType)
+        external view validResource(_resourceType) returns (uint256)
+    {
+        ResourceType rType = ResourceType(_resourceType);
+        uint256 count = 0;
+        for (uint256 id = 1; id <= nextSupplierId; id++) {
+            Supplier storage s = suppliers[id];
+            if (s.id != id) continue;
+            if (s.resources[rType].registered) count++;
+        }
+        return count;
     }
 
     function _resourceName(ResourceType _type) internal pure returns (string memory) {

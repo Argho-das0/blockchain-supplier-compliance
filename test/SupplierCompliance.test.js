@@ -165,5 +165,14 @@ describe("SupplierCompliance", function () {
       const res = await contract.getFrequentDefaulters(5);
       expect(res[0].length).to.equal(0);
     });
+    it("getSuppliersCountForResource returns correct counts", async () => {
+      expect(await contract.getSuppliersCountForResource(0)).to.equal(2);
+      expect(await contract.getSuppliersCountForResource(1)).to.equal(0);
+      expect(await contract.getSuppliersCountForResource(2)).to.equal(0);
+      expect(await contract.getSuppliersCountForResource(3)).to.equal(0);
+    });
+    it("getAggregateResourceQuantity returns correct totals", async () => {
+      expect(await contract.getAggregateResourceQuantity(0)).to.equal(3000);
+    });
   });
 });

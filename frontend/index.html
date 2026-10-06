@@ -39,63 +39,57 @@
           <div id="admin-summary-output" class="summary-strip"></div>
         </section>
 
-        <div class="admin-grid">
-          <div class="admin-col-main">
-            <section id="admin-pending">
-              <div class="section-head">
-                <h2>Pending Approvals</h2>
-                <button id="admin-approve-all" class="btn-sm success">Approve All</button>
-              </div>
-              <div id="admin-pending-output"></div>
-            </section>
-
-            <section id="admin-controls">
-              <div class="section-head"><h2>Emergency &amp; Admin Controls</h2></div>
-              <div class="controls-row">
-                <button id="check-pause-status" class="btn-sm">Check Pause Status</button>
-                <button id="pause-contract" class="btn-sm danger">Pause Contract</button>
-                <button id="unpause-contract" class="btn-sm success">Unpause Contract</button>
-              </div>
-              <div id="pause-status" class="status"></div>
-              <hr class="divider" />
-              <div class="controls-row">
-                <input type="text" id="new-admin" placeholder="New admin wallet address" />
-                <button id="set-admin" class="btn-sm">Set Admin</button>
-              </div>
-              <div class="controls-row">
-                <input type="text" id="new-aid-fund" placeholder="New aid-fund wallet address" />
-                <button id="set-aid-fund" class="btn-sm">Set Aid Fund</button>
-              </div>
-            </section>
+        <section class="full-width" id="admin-pending">
+          <div class="section-head">
+            <h2>Pending Approvals</h2>
+            <button id="admin-approve-all" class="btn-sm success">Approve All</button>
           </div>
+          <div id="admin-pending-output"></div>
+        </section>
 
-          <div class="admin-col-side">
-            <section id="admin-funds">
-              <div class="section-head"><h2>Funds Collected</h2></div>
-              <div id="admin-funds-output"></div>
-            </section>
+        <section class="full-width" id="admin-funds">
+          <div class="section-head"><h2>Funds Collected</h2></div>
+          <div id="admin-funds-output"></div>
+        </section>
 
-            <section id="admin-top">
-              <div class="section-head"><h2>Top Performers</h2></div>
-              <div id="admin-top-output"></div>
-            </section>
+        <section class="full-width" id="admin-top">
+          <div class="section-head"><h2>Top Performers</h2></div>
+          <div id="admin-top-output"></div>
+        </section>
 
-            <section id="admin-defaulters">
-              <div class="section-head"><h2>Frequent Defaulters</h2></div>
-              <div id="admin-defaulters-output"></div>
-            </section>
+        <section class="full-width" id="admin-defaulters">
+          <div class="section-head"><h2>Frequent Defaulters</h2></div>
+          <div id="admin-defaulters-output"></div>
+        </section>
 
-            <section id="admin-types">
-              <div class="section-head"><h2>Type Breakdown</h2></div>
-              <div id="admin-types-output"></div>
-            </section>
+        <section class="full-width" id="admin-types">
+          <div class="section-head"><h2>Type Breakdown</h2></div>
+          <div id="admin-types-output"></div>
+        </section>
 
-            <section id="admin-resources">
-              <div class="section-head"><h2>Aggregate Resources</h2></div>
-              <div id="admin-resources-output"></div>
-            </section>
+        <section class="full-width" id="admin-resources">
+          <div class="section-head"><h2>Aggregate Resources</h2></div>
+          <div id="admin-resources-output"></div>
+        </section>
+
+        <section class="full-width" id="admin-controls">
+          <div class="section-head"><h2>Emergency &amp; Admin Controls</h2></div>
+          <div class="controls-row">
+            <button id="check-pause-status" class="btn-sm">Check Pause Status</button>
+            <button id="pause-contract" class="btn-sm danger">Pause Contract</button>
+            <button id="unpause-contract" class="btn-sm success">Unpause Contract</button>
           </div>
-        </div>
+          <div id="pause-status" class="status"></div>
+          <hr class="divider" />
+          <div class="controls-row">
+            <input type="text" id="new-admin" placeholder="New admin wallet address" />
+            <button id="set-admin" class="btn-sm">Set Admin</button>
+          </div>
+          <div class="controls-row">
+            <input type="text" id="new-aid-fund" placeholder="New aid-fund wallet address" />
+            <button id="set-aid-fund" class="btn-sm">Set Aid Fund</button>
+          </div>
+        </section>
       </div>
 
       <!-- TAB: SUPPLIERS -->
